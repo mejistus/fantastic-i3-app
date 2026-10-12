@@ -30,7 +30,7 @@ Then it lists what's left to do by hand:
 
 Last, it prints a key cheat sheet. Take a screenshot of it; `install.sh --keys` prints it again.
 
-The first time the Wi-Fi panel starts, macOS asks whether "fantastic-i3 Wi-Fi" may use your location. Allow it: macOS only shows Wi-Fi names to apps with location access.
+The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantastic-i3" may use your location and Bluetooth. Allow both: macOS only shows Wi-Fi names to apps with location access, and the Bluetooth panel needs Bluetooth access to list your devices.
 
 ## Keys
 
@@ -123,7 +123,7 @@ A SketchyBar bar styled like the i3 polybar (One Dark, Maple Mono NF). It is as 
 
 - A theme toggle: colour or black-and-white icons. Warnings stay yellow / red and the panels stay in colour.
 - GPU (Apple Silicon) and CPU, each a graph and a percentage, then memory and disk (used, counted like Finder).
-- Network speed (upload above download, in small type), input method (中 / EN), volume (scroll to change), battery (green above 80 %, yellow from 30 %, red below), and the date and time in the system locale (10月7日 週三 13:55).
+- Bluetooth (the icon shows off / on / a device connected), network speed (upload above download, in small type), input method (中 / EN), volume (scroll to change), battery (green above 80 %, yellow from 30 %, red below), and the date and time in the system locale (10月7日 週三 13:55).
 
 Click an item on the right for a detail panel; click again or move away to close it. The ↗ in a panel's title opens the matching app or settings page.
 
@@ -132,6 +132,7 @@ Click an item on the right for a detail panel; click again or move away to close
 | GPU, CPU | A larger history graph. CPU also lists the top 5 processes |
 | Memory, disk | A usage bar and breakdown. Memory also lists the top 5 processes |
 | Network | Speeds, IP, router, Wi-Fi signal, rate and channel, then nearby Wi-Fi with a search box. Click a network to expand it: security, account (enterprise networks) and password fields, Forget and Connect / Disconnect |
+| Bluetooth | An on / off switch and your paired devices, connected ones first with their battery when the device reports it. Click a device to expand it: type, address, battery, Forget and Connect / Disconnect |
 | Input method | Your input sources; click one to switch to it |
 | Volume | A slider for the current output device (the number follows as you drag), and mute |
 | Battery | Health, cycles, temperature |
@@ -144,7 +145,7 @@ Prefer the macOS menu bar? `echo native > ~/.config/fantastic-i3/bar` keeps Sket
 <details>
 <summary>How it's built</summary>
 
-Config is in [`sketchybar/`](sketchybar). The network panel is a native panel from a separate small app (`WiFiPanel.app`, built by `aero wifi`), because SketchyBar panels can't hold text fields. GPU, CPU, memory, disk, network, input method and the other panels' contents come from `aero-helper bar-stats` ([`yabai/helper/bar.swift`](yabai/helper/bar.swift)); the top-5 process lists are computed only while a panel is open.
+Config is in [`sketchybar/`](sketchybar). The network and Bluetooth panels are native panels from a separate small app (`BarPanels.app`, built and started by `aero panel`), because SketchyBar panels can't hold text fields; the same app keeps the Bluetooth icon up to date. GPU, CPU, memory, disk, network, input method and the other panels' contents come from `aero-helper bar-stats` ([`yabai/helper/bar.swift`](yabai/helper/bar.swift)); the top-5 process lists are computed only while a panel is open.
 
 The background is `aero-helper bar-backdrop` ([`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)). Like the real menu bar, it shows the top of the wallpaper heavily blurred and slightly darkened. It sits just above the real menu bar and its status icons (level 26), hiding them under the bar; dropdown menus and Control Center still open above it. It sits on the regular desktops only, so it slides in and out with them and never covers a native-fullscreen app (videos, slides). Every 0.2 s it checks whether a window covers a whole screen without native fullscreen, such as a PowerPoint slideshow; if so, the bar (`topmost=off`) and the backdrop drop below windows until it's gone.
 
@@ -175,7 +176,7 @@ Once it's loaded, missing desktops are created automatically. Run `setup-sa` aga
 | [`yabai/yabairc`](yabai/yabairc) | yabai config: rules, fixed workspaces, signals |
 | [`yabai/aero`](yabai/aero) | Workspace and window commands the keys call |
 | [`yabai/helper/`](yabai/helper) | aero-helper (Swift): the switcher lists, bar stats and backdrop |
-| [`yabai/helper/wifi/`](yabai/helper/wifi) | The Wi-Fi panel, built as its own small app because location access (needed for Wi-Fi names) is only granted to apps |
+| [`yabai/helper/panels/`](yabai/helper/panels) | The Wi-Fi and Bluetooth panels, built as their own small app because location access (needed for Wi-Fi names) and Bluetooth access are only granted to apps |
 | [`yabai/setup-sa`](yabai/setup-sa) | Scripting addition setup |
 | [`skhd/`](skhd) | Keys |
 | [`sketchybar/`](sketchybar) | Top bar |

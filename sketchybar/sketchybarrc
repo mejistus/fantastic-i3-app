@@ -245,7 +245,7 @@ done
 #      上传在上、下载在下，叠在同一个位置（字小一号，24 高的栏放得下两行）：先加的 net.tx 宽度设成 0，
 #      它的内容往左画，正好盖在后加的 net.rx 上；两个的右边距一样（ITEM_GAP），右端才对齐。
 #      点哪一块都由 hover.sh 当成 net 处理：开 / 收 Wi-Fi 面板。那个面板不是 SketchyBar 的，是一个单独的小 App
-#      （../yabai/helper/wifi，aero wifi 编译、启动），因为要搜索框、密码框，还要定位权限才看得到 Wi-Fi 名称。
+#      （../yabai/helper/panels，aero panel 编译、启动），因为要搜索框、密码框，还要定位权限才看得到 Wi-Fi 名称。
 #      label 由 bar-stats 推送 ----
 STACK_RATE_WIDTH=$((RATE_GLYPH * 95 / 120 + 7))   # 9.5 号字的"400M"（RATE_GLYPH 是 12 号的）+ label 内边距
 for part in tx rx; do
@@ -262,6 +262,13 @@ sketchybar --add item net right \
     --set net padding_left=$ITEM_GAP padding_right=0 icon=󰖟 icon.color=$BAR_CYAN label.drawing=off \
         script="$PLUGINS/hover.sh"
 sketchybar --subscribe net mouse.clicked
+
+# ---- 蓝牙（在网络左边）：图标跟着状态变（关着灰、开着、有设备连着），由同一个小 App 推送（../yabai/helper/panels/bluetooth.swift）；
+#      点一下开 / 收蓝牙面板（总开关、配对过的设备、连接 / 断开 / 忘记）----
+sketchybar --add item bluetooth right \
+    --set bluetooth padding_left=$ITEM_GAP padding_right=0 icon=󰂯 icon.color=$BAR_BLUE label.drawing=off \
+        script="$PLUGINS/hover.sh" \
+    --subscribe bluetooth mouse.clicked
 
 # ---- 磁盘 ----
 sketchybar --add item disk right \
@@ -326,6 +333,6 @@ sketchybar "${spacing[@]}"
 "$AERO" helper >/dev/null 2>&1
 "$HELPER" bar-stats 2 >/dev/null 2>&1 &
 "$HELPER" bar-backdrop >/dev/null 2>&1 &
-"$AERO" wifi start >/dev/null 2>&1 &   # Wi-Fi 面板先在后台跑起来（第一次要编译十几秒），点网络项时马上就能开
+"$AERO" panel start >/dev/null 2>&1 &   # Wi-Fi、蓝牙面板的 App 先在后台跑起来（第一次要编译十几秒），顺便推蓝牙图标
 
 sketchybar --update
