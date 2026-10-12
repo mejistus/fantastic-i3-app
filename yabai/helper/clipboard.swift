@@ -10,6 +10,7 @@
 
 import AppKit
 import CryptoKit
+import QuickLookThumbnailing
 
 let clipboardDir = NSString("~/.config/fantastic-i3/clipboard").expandingTildeInPath
 let clipboardHistory = URL(fileURLWithPath: clipboardDir + "/history.json")
@@ -141,6 +142,9 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
     var center: NSPoint?
     var clickMonitor: Any?
     var icons: [String: NSImage] = [:]
+    var thumbnails: [String: NSImage] = [:]     // 列表里的缩略图（文件、图片），按路径
+    var pendingThumbnails: Set<String> = []
+    var previewing = ""                          // 右边正在预览的条目：缩略图生成完时还是它才换上
     let fieldEditor: PlainFieldEditor = {
         let editor = PlainFieldEditor()
         editor.isFieldEditor = true
@@ -153,8 +157,13 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         super.init()
         all = loadClipHistory().map { entry in
             let text = entry.kind == "image" ? "图片 \(entry.size ?? "")" : (entry.text ?? "")
-            let title = text.split(whereSeparator: \.isNewline).first.map(String.init)?
+            var title = text.split(whereSeparator: \.isNewline).first.map(String.init)?
                 .trimmingCharacters(in: .whitespaces) ?? ""
+            if entry.kind == "files" {   // 文件：标题是文件名（路径太长，截掉以后看不出是哪个），搜索时整条路径都算
+                let paths = filePaths(entry)
+                let name = (title as NSString).lastPathComponent
+                title = paths.count > 1 ? "\(name) 等 \(paths.count) 个文件" : name
+            }
             return Row(entry: entry, title: title, haystack: searchKeys("\(text.prefix(300)) \(entry.app ?? "")"))
         }
         shown = all
@@ -363,6 +372,7 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
     }
 
     func showPreview(_ entry: ClipEntry?) {
+        previewing = entry?.id ?? ""
         guard let entry else {
             previewText.string = all.isEmpty ? "剪贴板历史是空的：复制点东西再来" : "没有匹配的内容"
             previewText.textColor = .tertiaryLabelColor
@@ -385,8 +395,17 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
             previewText.textColor = .labelColor
             previewText.scrollToBeginningOfDocument(nil)
             if entry.kind == "files" {
-                let count = entry.text?.split(separator: "\n").count ?? 0
-                parts.append("\(count) 个文件")
+                // 文件：先列出路径，"快速查看"的缩略图（图片、PDF、视频、文稿…）生成好了换成它
+                let paths = filePaths(entry)
+                let name = paths.first.map { ($0 as NSString).lastPathComponent } ?? ""
+                parts.append(paths.count > 1 ? "\(paths.count) 个文件 · \(name) 等" : "文件 · \(name)")
+                if let first = paths.first, FileManager.default.fileExists(atPath: first) {
+                    if paths.count == 1 { parts += fileFacts(first) }
+                    loadPreview(first, for: entry.id)
+                } else {
+                    previewText.string = "文件已经不在了：\n" + paths.joined(separator: "\n")
+                    previewText.textColor = .tertiaryLabelColor
+                }
             } else {
                 let text = entry.text ?? ""
                 let lines = text.split(whereSeparator: \.isNewline).count
@@ -396,6 +415,67 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         if let app = entry.app { parts.append(app) }
         parts.append(timeText(entry.date))
         info.stringValue = parts.joined(separator: " · ")
+    }
+
+    func filePaths(_ entry: ClipEntry) -> [String] {
+        (entry.text ?? "").split(separator: "\n").map(String.init)
+    }
+
+    /// 大小；图片再加像素尺寸
+    func fileFacts(_ path: String) -> [String] {
+        var facts: [String] = []
+        if let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int64 {
+            facts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+        }
+        if let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+           let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+           let width = properties[kCGImagePropertyPixelWidth] as? Int, let height = properties[kCGImagePropertyPixelHeight] as? Int {
+            facts.append("\(width) × \(height)")
+        }
+        return facts
+    }
+
+    /// 右边的大预览：系统"快速查看"给的图（缩略图，没有就是大图标），生成完时选中的还是这条才换上
+    func loadPreview(_ path: String, for id: String) {
+        let request = QLThumbnailGenerator.Request(fileAt: URL(fileURLWithPath: path), size: previewImage.frame.size,
+                                                   scale: panel.backingScaleFactor, representationTypes: .all)
+        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { [weak self] representation, _ in
+            DispatchQueue.main.async {
+                guard let self, let image = representation?.nsImage, self.previewing == id else { return }
+                self.previewImage.image = image
+                self.previewImage.isHidden = false
+                self.previewScroll.isHidden = true
+            }
+        }
+    }
+
+    /// 列表里的小缩略图：有就用，没有就先返回 nil（用图标顶着），后台生成好了再重画那几行
+    func rowThumbnail(_ entry: ClipEntry) -> NSImage? {
+        let path: String
+        switch entry.kind {
+        case "image": guard let name = entry.image else { return nil }; path = clipboardImages + "/" + name
+        case "files": guard let first = filePaths(entry).first else { return nil }; path = first
+        default: return nil
+        }
+        if let image = thumbnails[path] { return image }
+        guard !pendingThumbnails.contains(path), FileManager.default.fileExists(atPath: path) else { return nil }
+        pendingThumbnails.insert(path)
+        let side = round(28 * scale)
+        let request = QLThumbnailGenerator.Request(fileAt: URL(fileURLWithPath: path), size: CGSize(width: side, height: side),
+                                                   scale: panel.backingScaleFactor, representationTypes: .thumbnail)
+        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { [weak self] representation, _ in
+            DispatchQueue.main.async {
+                guard let self, let image = representation?.nsImage else { return }
+                self.thumbnails[path] = image
+                let rows = self.shown.indices.filter { row in
+                    let entry = self.shown[row].entry
+                    return entry.kind == "image" ? clipboardImages + "/" + (entry.image ?? "") == path
+                        : entry.kind == "files" && self.filePaths(entry).first == path
+                }
+                self.table.reloadData(forRowIndexes: IndexSet(rows), columnIndexes: IndexSet(integer: 0))
+            }
+        }
+        return nil
     }
 
     func timeText(_ date: Date) -> String {
@@ -492,10 +572,12 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         let iconSize = round(28 * scale)
         let icon = NSImageView(frame: NSRect(x: round(10 * scale), y: (rowHeight - iconSize) / 2, width: iconSize, height: iconSize))
         icon.imageScaling = .scaleProportionallyUpOrDown
-        if entry.kind == "image", let name = entry.image {
-            icon.image = NSImage(contentsOfFile: clipboardImages + "/" + name)
-        } else if entry.kind == "files", let first = entry.text?.split(separator: "\n").first {
-            icon.image = NSWorkspace.shared.icon(forFile: String(first))
+        if let thumbnail = rowThumbnail(entry) {
+            icon.image = thumbnail
+        } else if entry.kind == "image" {
+            icon.image = NSImage(systemSymbolName: "photo", accessibilityDescription: nil)
+        } else if entry.kind == "files", let first = filePaths(entry).first {
+            icon.image = NSWorkspace.shared.icon(forFile: first)
         } else {
             icon.image = appIcon(entry.bundle) ?? NSImage(systemSymbolName: "doc.text", accessibilityDescription: nil)
         }
