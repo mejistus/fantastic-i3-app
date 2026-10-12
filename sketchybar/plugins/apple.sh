@@ -15,6 +15,7 @@ pgrep -qf "^$HELPER apple-menu" && exit 0
 args=()
 for item in $POPUPS; do args+=(--set "$item" popup.drawing=off); done
 rm -f "$STATE/bar-hover"
+pkill -USR2 -f "^$HOME/.cache/fantastic-i3/WiFiPanel.app/Contents/MacOS/wifi-panel"   # Wi-Fi 面板开着就收起
 sketchybar "${args[@]}" --set apple background.drawing=on
 choice=$("$HELPER" apple-menu "$(sketchybar --query apple | jq -c '[.bounding_rects[] | select(.origin[0] > -9000)]')")
 sketchybar --set apple background.drawing=off

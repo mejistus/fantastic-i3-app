@@ -243,7 +243,8 @@ done
 
 # ---- 网速：一项只能有图标、文字两种颜色，箭头要单独上色，所以拆成三块：
 #      net（网络类型图标，带弹出面板）、net.rx（↓ 下载）、net.tx（↑ 上传），右边的先加。
-#      点哪一块都由 hover.sh 当成 net 处理；鼠标离开后由 bar-stats 收起面板（它盯的区域包括这三块）。
+#      点哪一块都由 hover.sh 当成 net 处理：开 / 收 Wi-Fi 面板。那个面板不是 SketchyBar 的，是一个单独的小 App
+#      （../yabai/helper/wifi，aero wifi 编译、启动），因为要搜索框、密码框，还要定位权限才看得到 Wi-Fi 名称。
 #      label 由 bar-stats 推送 ----
 for part in tx rx; do
     [ $part = tx ] && arrow=󱦲 color=$RED_DIM pad_right=$ITEM_GAP || arrow=󱦳 color=$GREEN_DIM pad_right=0
@@ -258,10 +259,7 @@ sketchybar --set net.rx icon.padding_left=$LABEL_GAP   # 类型图标和 ↓ 之
 sketchybar --add item net right \
     --set net padding_left=$ITEM_GAP padding_right=0 icon=󰖟 icon.color=$BAR_CYAN label.drawing=off \
         script="$PLUGINS/hover.sh"
-popup net
-sketchybar --set net popup.align=left   # 面板从这组的左边往右展开，盖住类型图标和两个数字
-popup_title net 󰖟 $BAR_CYAN
-popup_rows net down=下载 up=上传 "ip=IP 地址" router=路由器 signal=信号 rate=连接速率 channel=信道
+sketchybar --subscribe net mouse.clicked
 
 # ---- 磁盘 ----
 sketchybar --add item disk right \
@@ -326,5 +324,6 @@ sketchybar "${spacing[@]}"
 "$AERO" helper >/dev/null 2>&1
 "$HELPER" bar-stats 2 >/dev/null 2>&1 &
 "$HELPER" bar-backdrop >/dev/null 2>&1 &
+"$AERO" wifi start >/dev/null 2>&1 &   # Wi-Fi 面板先在后台跑起来（第一次要编译十几秒），点网络项时马上就能开
 
 sketchybar --update

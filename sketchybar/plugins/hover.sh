@@ -31,8 +31,18 @@ close() {
     pkill -USR2 -f "^$HELPER bar-backdrop"   # 面板后面的材质跟着收（见 backdrop.swift 的 syncPanels）
 }
 
+WIFI_BIN="$HOME/.cache/fantastic-i3/WiFiPanel.app/Contents/MacOS/wifi-panel"
+
 case "$NAME" in
-    "$ITEM" | net.rx | net.tx)   # 栏上的项：打开 / 收起面板
+    net | net.rx | net.tx)   # 网络项：Wi-Fi 面板是单独的 App（aero wifi），先收起 SketchyBar 的面板
+        args=()
+        for item in $POPUPS; do args+=(--set "$item" popup.drawing=off); done
+        sketchybar "${args[@]}"
+        rm -f "$STATE/bar-hover"
+        pkill -USR2 -f "^$HELPER bar-backdrop"
+        exec "$AERO" wifi toggle
+        ;;
+    "$ITEM")   # 栏上的项：打开 / 收起面板
         if [ "$(sketchybar --query "$ITEM" | jq -r .popup.drawing)" = on ]; then
             close
             exit 0
@@ -45,6 +55,7 @@ case "$NAME" in
         for item in $POPUPS; do
             [ "$item" = "$ITEM" ] || args+=(--set "$item" popup.drawing=off)
         done
+        pkill -USR2 -f "^$WIFI_BIN"   # Wi-Fi 面板开着就收起
         mkdir -p "$STATE" && echo "$ITEM" >"$STATE/bar-hover"
         pkill -USR1 -f "^$HELPER bar-stats"
         sketchybar "${args[@]}" --set "$ITEM" popup.drawing=on

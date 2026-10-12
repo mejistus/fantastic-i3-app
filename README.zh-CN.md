@@ -30,6 +30,8 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 
 最后打印一张快捷键表，建议截图保存；`install.sh --keys` 可以再打印一次。
 
+Wi-Fi 面板第一次启动时，系统会问"fantastic-i3 Wi-Fi"能不能使用你的位置，请点允许：macOS 只把 Wi-Fi 名称给有定位权限的程序。
+
 ## 快捷键
 
 ### 工作区
@@ -129,7 +131,7 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 |---|---|
 | GPU、CPU | 更长的历史曲线。CPU 还列出前 5 个进程 |
 | 内存、磁盘 | 用量条和明细。内存还列出前 5 个进程 |
-| 网络 | IP、路由器、Wi-Fi 信号、速率和信道 |
+| 网络 | 网速、IP、路由器、Wi-Fi 信号、速率和信道，下面是附近的 Wi-Fi 和搜索框。点一个网络展开：安全性、账号（企业级网络）和密码框，「忘记」「连接 / 断开」 |
 | 输入法 | 所有输入法，点一个就切过去 |
 | 音量 | 当前输出设备的音量滑块（拖的时候数字跟着变），静音 |
 | 电池 | 健康度、循环次数、温度 |
@@ -142,7 +144,7 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 <details>
 <summary>实现</summary>
 
-配置在 [`sketchybar/`](sketchybar)。GPU、CPU、内存、磁盘、网络、输入法和面板内容来自 `aero-helper bar-stats`（[`yabai/helper/bar.swift`](yabai/helper/bar.swift)）；前 5 个进程只在面板开着时才算。
+配置在 [`sketchybar/`](sketchybar)。网络面板是另一个小 App（`WiFiPanel.app`，由 `aero wifi` 编译）画的原生面板，因为 SketchyBar 的面板里放不了输入框。GPU、CPU、内存、磁盘、网络、输入法和其它面板的内容来自 `aero-helper bar-stats`（[`yabai/helper/bar.swift`](yabai/helper/bar.swift)）；前 5 个进程只在面板开着时才算。
 
 背景是 `aero-helper bar-backdrop`（[`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)）。和真正的菜单栏一样，它显示壁纸顶部、重度模糊再稍微压暗。它在真正的菜单栏和状态图标之上（层级 26），把它们挡在顶栏下面；下拉菜单和控制中心照样开在它上面。它只在普通桌面上，所以跟着桌面一起滑动，不会盖住原生全屏的应用（视频、幻灯片）。它每 0.2 秒看一次有没有不走原生全屏、却盖满整块屏的窗口（比如 PowerPoint 放映）；有的话顶栏（`topmost=off`）和底板一起降到窗口下面，等它没了再回来。
 
@@ -173,6 +175,7 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 | [`yabai/yabairc`](yabai/yabairc) | yabai 配置：规则、固定工作区、信号 |
 | [`yabai/aero`](yabai/aero) | 快捷键调用的工作区和窗口命令 |
 | [`yabai/helper/`](yabai/helper) | aero-helper（Swift）：切换列表、顶栏数据和背景 |
+| [`yabai/helper/wifi/`](yabai/helper/wifi) | Wi-Fi 面板，单独编译成一个小 App：看 Wi-Fi 名称要定位权限，而定位权限只能给 App |
 | [`yabai/setup-sa`](yabai/setup-sa) | 脚本扩展的安装 |
 | [`skhd/`](skhd) | 快捷键 |
 | [`sketchybar/`](sketchybar) | 顶栏 |
