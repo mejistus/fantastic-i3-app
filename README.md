@@ -67,7 +67,7 @@ The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantast
 | <kbd>⌥D</kbd> | Bring a Finder window to this workspace, or open one |
 | <kbd>⌥⇧D</kbd> | Open a new Finder window on Documents here |
 | <kbd>⌥G</kbd> | Default browser on workspace 1: focus its window there, or open one |
-| <kbd>⌥⇧V</kbd> | Clipboard history: text, images and files you copied (up to 300 entries, 40 images), newest first, with a preview on the right. Type to search (pinyin too), Return pastes into the app you were in, ⌘Return only copies, ⌘⌫ deletes an entry. Items password managers mark as concealed aren't kept. Stored in `~/.config/fantastic-i3/clipboard/`, readable only by you |
+| <kbd>⌥⇧V</kbd> | Clipboard history: text, images and files you copied (up to 300 entries, 40 images), newest first, with a preview on the right. Type to search (pinyin too), Return pastes into the app you were in, ⌘Return only copies, ⌘⌫ deletes an entry, ⌘+ / ⌘- zoom (remembered, ⌘0 resets); press ⌥⇧V again to close. Items password managers mark as concealed aren't kept. Stored in `~/.config/fantastic-i3/clipboard/`, readable only by you |
 | <kbd>⌥O</kbd> | Select a screen region and copy the text in it, row by row (macOS's own text recognition, offline). Chinese and English, simplified and traditional, also mixed with Japanese or Korean: the Chinese, Japanese and Korean models each read the image and the results are merged |
 | <kbd>⌥I</kbd> | Select a formula and copy its LaTeX source (a SiliconFlow vision model, the same model, prompt and cleanup as the latex-ocr-queen Raycast extension). Needs your SiliconFlow API key, see below |
 
@@ -187,10 +187,11 @@ Once it's loaded, missing desktops are created automatically. Run `setup-sa` aga
 | [`yabai/setup-sa`](yabai/setup-sa) | Scripting addition setup |
 | [`skhd/`](skhd) | Keys |
 | [`sketchybar/`](sketchybar) | Top bar |
-| [`yabai/window_switcher`](yabai/window_switcher) | ⌥⇥, ⌘⇥ and ⌘Space |
+| [`bin/fantastic-app-launcher`](bin/fantastic-app-launcher) | ⌥⇥, ⌘⇥ and ⌘Space: app launcher and window switcher (the list itself is in `yabai/helper/main.swift`) |
+| [`bin/fantastic-clipboard`](bin/fantastic-clipboard) | ⌥⇧V clipboard history (panel and recorder in `yabai/helper/clipboard.swift`) |
 | [`yabai/new_window_here`](yabai/new_window_here) | ⌥D and ⌥⇧D |
 | [`yabai/capture`](yabai/capture) | ⌥O and ⌥I (recognition in `yabai/helper/capture.swift`) |
 
-[`bin/`](bin) holds small standalone tools: `center-window` (centres the front window; the AeroSpace config calls it), `freemps` (allocates a given amount of GPU memory on the MPS device with PyTorch, 8 GB by default), `list_brew_packages` (Homebrew formulae and casks by disk size) and `nvim-opener.sh` (opens a file in Neovim in kitty). Put them on your `PATH` if you want them, for example by copying them to `~/.local/bin`.
+The installer links every command in [`bin/`](bin) into `~/.local/bin`, so they also work from the terminal (`fantastic-clipboard`, `fantastic-app-launcher --list`); the keys call them there. Besides the two above, `bin/` has small standalone tools: `center-window` (centres the front window; the AeroSpace config calls it), `freemps` (allocates a given amount of GPU memory on the MPS device with PyTorch, 8 GB by default), `list_brew_packages` (Homebrew formulae and casks by disk size) and `nvim-opener.sh` (opens a file in Neovim in kitty).
 
 The other folders here (`kitty/`, `aerospace/`) are standalone configs; the installer doesn't touch them. For Neovim use [NextVim](https://github.com/mejistus/NextVim).

@@ -67,7 +67,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | <kbd>⌥D</kbd> | 把一个 Finder 窗口拿到当前工作区，没有就新开 |
 | <kbd>⌥⇧D</kbd> | 在当前工作区新开一个 Finder 窗口，打开文稿 |
 | <kbd>⌥G</kbd> | 工作区 1 的默认浏览器：那里有它的窗口就切过去，没有就新开 |
-| <kbd>⌥⇧V</kbd> | 剪贴板历史：复制过的文字、图片、文件（最多 300 条，其中图片 40 张），新的在前，右边预览。打字搜索（拼音也行），回车粘贴到原来的应用，⌘回车只复制，⌘⌫ 删掉一条。密码管理器标成隐藏的内容不记。存在 `~/.config/fantastic-i3/clipboard/`，只有你自己能读 |
+| <kbd>⌥⇧V</kbd> | 剪贴板历史：复制过的文字、图片、文件（最多 300 条，其中图片 40 张），新的在前，右边预览。打字搜索（拼音也行），回车粘贴到原来的应用，⌘回车只复制，⌘⌫ 删掉一条，⌘+ / ⌘- 缩放（会记住，⌘0 恢复默认）；再按一次 ⌥⇧V 关掉。密码管理器标成隐藏的内容不记。存在 `~/.config/fantastic-i3/clipboard/`，只有你自己能读 |
 | <kbd>⌥O</kbd> | 框选一块屏幕，把里面的文字按行复制下来（系统自带的文字识别，不联网）。中英文、简繁，夹着日文、韩文也行：中、日、韩三种模型各认一遍再合起来 |
 | <kbd>⌥I</kbd> | 框选一个公式，把它的 LaTeX 源码复制下来（SiliconFlow 的视觉大模型，模型、提示词和清理都和 Raycast 扩展 latex-ocr-queen 一样）。要 SiliconFlow 的 API Key，见下 |
 
@@ -187,10 +187,11 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | [`yabai/setup-sa`](yabai/setup-sa) | 脚本扩展的安装 |
 | [`skhd/`](skhd) | 快捷键 |
 | [`sketchybar/`](sketchybar) | 顶栏 |
-| [`yabai/window_switcher`](yabai/window_switcher) | ⌥⇥、⌘⇥ 和 ⌘Space |
+| [`bin/fantastic-app-launcher`](bin/fantastic-app-launcher) | ⌥⇥、⌘⇥ 和 ⌘Space：应用启动器和窗口切换器（列表界面在 `yabai/helper/main.swift`） |
+| [`bin/fantastic-clipboard`](bin/fantastic-clipboard) | ⌥⇧V 剪贴板历史（面板和记录在 `yabai/helper/clipboard.swift`） |
 | [`yabai/new_window_here`](yabai/new_window_here) | ⌥D 和 ⌥⇧D |
 | [`yabai/capture`](yabai/capture) | ⌥O 和 ⌥I（识别在 `yabai/helper/capture.swift`） |
 
-[`bin/`](bin) 里是几个独立的小工具：`center-window`（把最前面的窗口居中，AeroSpace 配置里用）、`freemps`（用 PyTorch 在 MPS 上占用指定大小的显存，默认 8 GB）、`list_brew_packages`（按占用空间列出 Homebrew 装的包）、`nvim-opener.sh`（在 kitty 里用 Neovim 打开文件）。要用的话放到 `PATH` 上，比如拷到 `~/.local/bin`。
+安装脚本把 [`bin/`](bin) 里的每个命令链接到 `~/.local/bin`，终端里也能直接用（`fantastic-clipboard`、`fantastic-app-launcher --list`），快捷键也是从那里调的。除了上面两个，`bin/` 里还有几个独立的小工具：`center-window`（把最前面的窗口居中，AeroSpace 配置里用）、`freemps`（用 PyTorch 在 MPS 上占用指定大小的显存，默认 8 GB）、`list_brew_packages`（按占用空间列出 Homebrew 装的包）、`nvim-opener.sh`（在 kitty 里用 Neovim 打开文件）。
 
 这里的其它文件夹（`kitty/`、`aerospace/`）是独立的配置，安装脚本不碰它们。Neovim 配置用 [NextVim](https://github.com/mejistus/NextVim)。

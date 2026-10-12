@@ -45,7 +45,7 @@ if [ -z "$AERO_RELOAD" ] || ! pgrep -qf "^$HELPER clipboard-watch"; then
     "$HELPER" clipboard-watch >/dev/null 2>&1 &
 fi
 
-# ⌘⇥ 和 ⌘Space 交给 skhd（⌘⇥ 窗口列表、⌘Space 应用列表，见 window_switcher）：关掉 macOS 自带的应用切换器和 Spotlight 的快捷键。
+# ⌘⇥ 和 ⌘Space 交给 skhd（⌘⇥ 窗口列表、⌘Space 应用列表，见 ../bin/fantastic-app-launcher）：关掉 macOS 自带的应用切换器和 Spotlight 的快捷键。
 # 重新登录后会恢复，所以每次都关
 "$AERO" helper native-hotkeys off
 

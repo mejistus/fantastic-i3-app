@@ -3,10 +3,10 @@
 //                                 存在 ~/.config/fantastic-i3/clipboard/（history.json，图片在 images/，只有自己能读）。
 //                                 密码管理器标成"隐藏 / 临时"的内容不记。最多 300 条，其中图片最多 40 张；
 //                                 同样的内容再复制一次就挪到最上面。SIGHUP：重读（面板里删了条目）
-//   aero-helper clipboard         面板（skhd 的 ⌥⇧V），样子和 ⌥⇥ 的窗口列表一样（系统弹出层材质、圆角、居中）：
-//                                 左边历史，右边预览选中的那条。直接打字搜索（汉字用拼音也行）；↑↓ 选，
-//                                 回车粘贴到当前应用（面板不抢前台，关掉后按一下 ⌘V），⌘回车 只复制，
-//                                 ⌘⌫ 删掉这条，Esc 或点面板外面关闭
+//   aero-helper clipboard         面板（../../bin/fantastic-clipboard 打开，skhd 的 ⌥⇧V），样子和 ⌥⇥ 的列表一样
+//                                 （系统弹出层材质、圆角、居中）：左边历史，右边预览选中的那条。直接打字搜索（汉字用拼音也行）；
+//                                 ↑↓ 选，回车粘贴到当前应用（面板不抢前台，关掉后按一下 ⌘V），⌘回车 只复制，
+//                                 ⌘⌫ 删掉这条，⌘+ / ⌘- 缩放（会记住），⌘0 恢复默认，Esc 或点面板外面关闭
 
 import AppKit
 import CryptoKit
@@ -118,6 +118,12 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         let haystack: [[Character]]
     }
 
+    /// 列表里标题的字号；其余尺寸都按它和默认值的比例缩放（⌘+ / ⌘- 调，会记住，⌘0 恢复默认）
+    static let defaultFontSize: CGFloat = 13
+    let store = UserDefaults(suiteName: "fantastic-i3.clipboard")!
+    var fontSize: CGFloat
+    var scale: CGFloat { fontSize / ClipboardPanel.defaultFontSize }
+
     var all: [Row] = []
     var shown: [Row] = []
     let panel = KeyPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -130,7 +136,9 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
     let previewScroll = NSScrollView()
     let previewImage = NSImageView()
     let info = NSTextField(labelWithString: "")
-    let hint = NSTextField(labelWithString: "↩ 粘贴    ⌘↩ 只复制    ⌘⌫ 删除    Esc 关闭")
+    let hint = NSTextField(labelWithString: "↩ 粘贴    ⌘↩ 只复制    ⌘⌫ 删除    ⌘+ ⌘- 缩放    Esc 关闭")
+    var screenFrame = NSRect.zero
+    var center: NSPoint?
     var clickMonitor: Any?
     var icons: [String: NSImage] = [:]
     let fieldEditor: PlainFieldEditor = {
@@ -140,6 +148,8 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
     }()
 
     override init() {
+        let saved = store.double(forKey: "fontSize")
+        fontSize = saved > 0 ? CGFloat(saved) : ClipboardPanel.defaultFontSize
         super.init()
         all = loadClipHistory().map { entry in
             let text = entry.kind == "image" ? "图片 \(entry.size ?? "")" : (entry.text ?? "")
@@ -151,9 +161,6 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let width: CGFloat = 780, height: CGFloat = 480, pad: CGFloat = 12, listWidth: CGFloat = 320
-        let searchHeight: CGFloat = 30, hintHeight: CGFloat = 22
-
         // 和 ⌥⇥ 的窗口列表一样：系统弹出层材质，圆角用 maskImage（阴影也跟着圆角走）
         let radius: CGFloat = 16
         let mask = NSImage(size: NSSize(width: radius * 2 + 1, height: radius * 2 + 1), flipped: false) { rect in
@@ -183,25 +190,17 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         search.isBordered = false
         search.drawsBackground = false
         search.focusRingType = .none
-        search.font = .systemFont(ofSize: 20)
-        search.placeholderAttributedString = NSAttributedString(string: "搜索剪贴板…", attributes: [
-            .font: NSFont.systemFont(ofSize: 20, weight: .light), .foregroundColor: NSColor.tertiaryLabelColor])
         search.delegate = self
         search.cell?.usesSingleLineMode = true
-        search.frame = NSRect(x: pad + 6, y: height - pad - searchHeight, width: width - 2 * pad - 12, height: searchHeight)
         effect.addSubview(search)
 
         divider.boxType = .separator
-        divider.frame = NSRect(x: pad, y: height - pad - searchHeight - pad / 2 - 1, width: width - 2 * pad, height: 1)
         effect.addSubview(divider)
 
-        let bodyTop = divider.frame.minY - pad / 2
-        let bodyBottom = hintHeight + pad / 2
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("entry"))
         table.addTableColumn(column)
         table.headerView = nil
         table.backgroundColor = .clear
-        table.rowHeight = 44
         table.intercellSpacing = NSSize(width: 0, height: 2)
         table.style = .plain
         table.focusRingType = .none
@@ -215,22 +214,15 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
-        scroll.frame = NSRect(x: pad / 2, y: bodyBottom, width: listWidth, height: bodyTop - bodyBottom)
-        column.width = scroll.contentSize.width
         effect.addSubview(scroll)
 
         split.boxType = .separator
-        split.frame = NSRect(x: scroll.frame.maxX + pad / 2, y: bodyBottom + 4, width: 1, height: bodyTop - bodyBottom - 8)
         effect.addSubview(split)
 
         // 右边预览：文字（能选中、能滚）或图片；下面一行是类型、大小、来源、时间
-        let previewX = split.frame.maxX + pad
-        let previewWidth = width - previewX - pad
-        let infoHeight: CGFloat = 20
         previewText.isEditable = false
         previewText.isSelectable = true
         previewText.drawsBackground = false
-        previewText.font = .systemFont(ofSize: 13)
         previewText.textColor = .labelColor
         previewText.textContainerInset = NSSize(width: 4, height: 6)
         previewText.isVerticallyResizable = true
@@ -240,38 +232,31 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         previewScroll.drawsBackground = false
         previewScroll.hasVerticalScroller = true
         previewScroll.autohidesScrollers = true
-        previewScroll.frame = NSRect(x: previewX, y: bodyBottom + infoHeight + 4, width: previewWidth,
-                                     height: bodyTop - bodyBottom - infoHeight - 4)
-        previewText.frame = NSRect(origin: .zero, size: previewScroll.contentSize)
         effect.addSubview(previewScroll)
         previewImage.imageScaling = .scaleProportionallyDown
-        previewImage.frame = previewScroll.frame.insetBy(dx: 6, dy: 6)
         effect.addSubview(previewImage)
-        info.font = .systemFont(ofSize: 11)
         info.textColor = .tertiaryLabelColor
         info.lineBreakMode = .byTruncatingTail
-        info.frame = NSRect(x: previewX + 4, y: bodyBottom, width: previewWidth - 8, height: infoHeight)
         effect.addSubview(info)
 
-        hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
         hint.alignment = .center
-        hint.frame = NSRect(x: pad, y: 4, width: width - 2 * pad, height: hintHeight - 4)
         effect.addSubview(hint)
 
         // 放在鼠标那块屏的中间偏上（和窗口列表一样）
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
-        let frame = screen.visibleFrame
-        panel.setFrame(NSRect(x: frame.midX - width / 2, y: frame.midY - height / 2 + frame.height * 0.08,
-                              width: width, height: height), display: true)
+        screenFrame = screen.visibleFrame
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.modifierFlags.contains(.command) else { return event }
             switch event.keyCode {
-            case 36, 76: self.confirm(self.table.selectedRow, paste: false)   // ⌘↩ 只复制
-            case 51: self.deleteSelected()                                     // ⌘⌫ 删掉这条
-            case 12, 13: exit(0)                                               // ⌘Q ⌘W
+            case 36, 76: self.confirm(self.table.selectedRow, paste: false)          // ⌘↩ 只复制
+            case 51: self.deleteSelected()                                            // ⌘⌫ 删掉这条
+            case 24, 69: self.setFontSize(self.fontSize + 1)                          // ⌘= ⌘+（含小键盘）
+            case 27, 78: self.setFontSize(self.fontSize - 1)                          // ⌘-
+            case 29, 82: self.setFontSize(ClipboardPanel.defaultFontSize, save: false) // ⌘0 恢复默认
+            case 12, 13: exit(0)                                                      // ⌘Q ⌘W
             default: return event
             }
             return nil
@@ -279,9 +264,64 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         // 点面板外面就关（面板不抢前台，收不到"失去焦点"）
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in exit(0) }
 
+        layout()
         filter("")
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(search)
+    }
+
+    // 缩放
+
+    func setFontSize(_ size: CGFloat, save: Bool = true) {
+        fontSize = min(max(size, 9), 30)
+        if save { store.set(Double(fontSize), forKey: "fontSize") } else { store.removeObject(forKey: "fontSize") }
+        layout()
+    }
+
+    /// 按当前字号排版：窗口大小、字体、行高都跟着比例走；窗口中心不动，放不下时缩回屏幕里
+    func layout() {
+        let s = scale
+        let pad = round(12 * s)
+        let searchFont = round(20 * s), smallFont = max(9, round(11 * s))
+        let searchHeight = ceil(searchFont * 1.5), hintHeight = ceil(smallFont * 2), infoHeight = ceil(smallFont * 1.8)
+        let width = min(round(780 * s), floor(screenFrame.width * 0.95))
+        let height = min(round(480 * s), floor(screenFrame.height * 0.9))
+        let listWidth = round(width * 0.41)
+
+        search.font = .systemFont(ofSize: searchFont)
+        search.placeholderAttributedString = NSAttributedString(string: "搜索剪贴板…", attributes: [
+            .font: NSFont.systemFont(ofSize: searchFont, weight: .light), .foregroundColor: NSColor.tertiaryLabelColor])
+        previewText.font = .systemFont(ofSize: fontSize)
+        info.font = .systemFont(ofSize: smallFont)
+        hint.font = .systemFont(ofSize: smallFont)
+        table.rowHeight = round(44 * s)
+
+        let c = center ?? NSPoint(x: screenFrame.midX, y: screenFrame.midY + screenFrame.height * 0.08)
+        center = c
+        var frame = NSRect(x: round(c.x - width / 2), y: round(c.y - height / 2), width: width, height: height)
+        frame.origin.x = min(max(frame.minX, screenFrame.minX), screenFrame.maxX - width)
+        frame.origin.y = min(max(frame.minY, screenFrame.minY), screenFrame.maxY - height)
+        panel.setFrame(frame, display: true)
+        panel.invalidateShadow()   // 阴影跟着圆角重新计算
+
+        search.frame = NSRect(x: pad + 6, y: height - pad - searchHeight, width: width - 2 * pad - 12, height: searchHeight)
+        divider.frame = NSRect(x: pad, y: height - pad - searchHeight - pad / 2 - 1, width: width - 2 * pad, height: 1)
+        let bodyTop = divider.frame.minY - pad / 2
+        let bodyBottom = hintHeight + pad / 2
+        scroll.frame = NSRect(x: pad / 2, y: bodyBottom, width: listWidth, height: bodyTop - bodyBottom)
+        table.tableColumns.first?.width = scroll.contentSize.width
+        split.frame = NSRect(x: scroll.frame.maxX + pad / 2, y: bodyBottom + 4, width: 1, height: bodyTop - bodyBottom - 8)
+        let previewX = split.frame.maxX + pad
+        let previewWidth = width - previewX - pad
+        previewScroll.frame = NSRect(x: previewX, y: bodyBottom + infoHeight + 4, width: previewWidth,
+                                     height: bodyTop - bodyBottom - infoHeight - 4)
+        previewText.frame = NSRect(origin: .zero, size: previewScroll.contentSize)
+        previewImage.frame = previewScroll.frame.insetBy(dx: 6, dy: 6)
+        info.frame = NSRect(x: previewX + 4, y: bodyBottom, width: previewWidth - 8, height: infoHeight)
+        hint.frame = NSRect(x: pad, y: 4, width: width - 2 * pad, height: hintHeight - 4)
+
+        table.reloadData()   // 行按新的字号重画（选中的行不变）
+        if shown.indices.contains(table.selectedRow) { table.scrollRowToVisible(table.selectedRow) }
     }
 
     func windowWillReturnFieldEditor(_ sender: NSWindow, to client: Any?) -> Any? {
@@ -448,8 +488,9 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         let entry = shown[row].entry
         let cell = NSTableCellView()
         let width = tableColumn?.width ?? scroll.contentSize.width
-        let iconSize: CGFloat = 28
-        let icon = NSImageView(frame: NSRect(x: 10, y: (table.rowHeight - iconSize) / 2, width: iconSize, height: iconSize))
+        let rowHeight = table.rowHeight
+        let iconSize = round(28 * scale)
+        let icon = NSImageView(frame: NSRect(x: round(10 * scale), y: (rowHeight - iconSize) / 2, width: iconSize, height: iconSize))
         icon.imageScaling = .scaleProportionallyUpOrDown
         if entry.kind == "image", let name = entry.image {
             icon.image = NSImage(contentsOfFile: clipboardImages + "/" + name)
@@ -461,16 +502,20 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         cell.addSubview(icon)
 
         let title = NSTextField(labelWithString: shown[row].title.isEmpty ? " " : shown[row].title)
-        title.font = .systemFont(ofSize: 13, weight: .medium)
+        title.font = .systemFont(ofSize: fontSize, weight: .medium)
         title.lineBreakMode = .byTruncatingTail
         title.maximumNumberOfLines = 1
-        title.frame = NSRect(x: icon.frame.maxX + 10, y: 22, width: width - icon.frame.maxX - 20, height: 17)
-        cell.addSubview(title)
         let detail = NSTextField(labelWithString: [entry.app, timeText(entry.date)].compactMap { $0 }.joined(separator: " · "))
-        detail.font = .systemFont(ofSize: 11)
+        detail.font = .systemFont(ofSize: max(9, round(11 * scale)))
         detail.textColor = .secondaryLabelColor
         detail.lineBreakMode = .byTruncatingTail
-        detail.frame = NSRect(x: title.frame.minX, y: 5, width: title.frame.width, height: 15)
+        // 两行字作为一块，在行里竖直居中
+        let titleHeight = ceil(title.intrinsicContentSize.height), detailHeight = ceil(detail.intrinsicContentSize.height)
+        let bottom = ((rowHeight - titleHeight - detailHeight) / 2).rounded()
+        let x = icon.frame.maxX + round(10 * scale)
+        title.frame = NSRect(x: x, y: bottom + detailHeight, width: width - x - 10, height: titleHeight)
+        detail.frame = NSRect(x: x, y: bottom, width: width - x - 10, height: detailHeight)
+        cell.addSubview(title)
         cell.addSubview(detail)
         return cell
     }

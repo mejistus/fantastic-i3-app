@@ -1,0 +1,13 @@
+#!/bin/bash
+# fantastic-clipboard：剪贴板历史（skhdrc：⌥⇧V）
+#   fantastic-clipboard   打开面板；面板开着时再运行一次（再按一次 ⌥⇧V）就关掉
+# 面板：左边是复制过的文字、图片、文件（新的在前），右边预览选中的那条。打字搜索（汉字用拼音也行），↑↓ 选，
+#       回车粘贴到原来的应用，⌘回车 只复制，⌘⌫ 删掉一条，⌘+ / ⌘- 缩放（会记住），⌘0 恢复默认，Esc 或点外面关闭
+# 记录：aero-helper clipboard-watch 常驻（yabairc 启动），存在 ~/.config/fantastic-i3/clipboard/（只有自己能读）。
+# 界面和记录都在 aero-helper 里（../yabai/helper/clipboard.swift）。
+
+AERO="$HOME/.config/yabai/aero"
+HELPER="$HOME/.cache/fantastic-i3/aero-helper"
+pkill -f "^$HELPER clipboard\$" && exit 0
+"$AERO" helper >/dev/null 2>&1   # 源码改过就先重新编译（不带参数时它只打印用法）
+exec "$HELPER" clipboard

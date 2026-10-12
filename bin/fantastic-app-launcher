@@ -1,9 +1,9 @@
 #!/bin/bash
-# 窗口切换器（yabai 版）
-#   window_switcher --list   立刻弹出所有桌面的窗口列表（⌘⇥）
-#   window_switcher --back   直接切到上一个用过的窗口（back-and-forth）
-#   window_switcher [--auto] 快速按一下 = --back，按住修饰键超过 HOLD_SECONDS = --list
-#   window_switcher --apps [--auto | --list | --back]
+# fantastic-app-launcher：应用启动器和窗口切换器（yabai 版）
+#   fantastic-app-launcher --list   立刻弹出所有桌面的窗口列表（⌘⇥）
+#   fantastic-app-launcher --back   直接切到上一个用过的窗口（back-and-forth）
+#   fantastic-app-launcher [--auto] 快速按一下 = --back，按住修饰键超过 HOLD_SECONDS = --list
+#   fantastic-app-launcher --apps [--auto | --list | --back]
 #                            按应用切换：快速按一下 = 回到上一个用过的应用，按住 = 应用列表（⌥⇥ 用 --auto，⌘Space 用 --list）
 #   --key option|command     --auto 等哪个修饰键松开（快捷键用的那个）；默认窗口列表 option、应用列表 command
 #
@@ -53,7 +53,7 @@ case $mode in
         # 等 ⌥ / ⌘ 松开，最多 HOLD_SECONDS 秒：松开了就是"快速按一下"
         if "$AERO" helper wait-release "$key" "$HOLD_SECONDS"; then mode=--back; else mode=--list; fi ;;
     --list | --back) ;;
-    *) echo "用法：window_switcher [--apps] [--key option|command] [--auto | --list | --back]" >&2; exit 2 ;;
+    *) echo "用法：fantastic-app-launcher [--apps] [--key option|command] [--auto | --list | --back]" >&2; exit 2 ;;
 esac
 
 mru=$(jq -R -s 'split("\n") | map(select(length > 0) | tonumber)' "$STATE/mru" 2>/dev/null || echo '[]')

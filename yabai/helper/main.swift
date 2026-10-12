@@ -1,4 +1,4 @@
-// aero-helper —— aero / window_switcher 用到的几个小工具（比 osascript 快得多）
+// aero-helper —— aero / fantastic-app-launcher / fantastic-clipboard 用到的几个小工具（比 osascript 快得多）
 //
 //   aero-helper step left|right
 //       模拟按 ⌃⌥← / ⌃⌥→（macOS "向左/右移动一个桌面"）。只补按用户没按着的修饰键，
@@ -7,7 +7,7 @@
 //       等这些修饰键全部松开；超时仍按着则退出码为 1。
 //   aero-helper native-hotkeys on|off
 //       打开 / 关闭 macOS 自带的 ⌘⇥ / ⌘⇧⇥ 应用切换器和 Spotlight 的 ⌘Space（关掉后这几个键才能交给 skhd）。
-//       效果持续到重新登录。yabairc 每次启动都关掉它们：⌘⇥ 是窗口列表、⌘Space 是应用列表（window_switcher）。
+//       效果持续到重新登录。yabairc 每次启动都关掉它们：⌘⇥ 是窗口列表、⌘Space 是应用列表（fantastic-app-launcher）。
 //   aero-helper menubar-autohide on|off
 //       系统菜单栏自动隐藏 / 常显（和系统设置里的开关一样，马上生效）。现在总是常显，SketchyBar 盖在它上面（aero bar-apply）。
 //   aero-helper ocr <图片> / aero-helper formula <图片>
@@ -28,7 +28,7 @@
 //       ⌘+ / ⌘- 调整字号，⌘0 恢复默认；字号会记住。
 //   aero-helper app-names <bundle id>
 //       打印这个应用可能叫的名字，每行一个（运行中的显示名、CFBundleName、可执行文件名……）。yabai 规则按应用名匹配，
-//       window_switcher 用它找应用固定的工作区（应用还没运行时也行，不靠 Spotlight）。
+//       fantastic-app-launcher 用它找应用固定的工作区（应用还没运行时也行，不靠 Spotlight）。
 //   aero-helper default-browser
 //       打印默认浏览器的 bundle id 和正在运行的进程号：com.microsoft.edgemac<TAB>123 456
 //   aero-helper option-fn <命令>

@@ -141,6 +141,8 @@ link() { # <仓库里的文件夹> <链接位置>
         mkdir -p "$(dirname "$dst")"
         if [ -L "$dst" ] && { [ ! -e "$dst" ] || [ "$(readlink -f "$dst")" = "$(readlink -f "$src")" ]; }; then
             rm "$dst"   # 坏掉的链接，或者指向同一处、只是路径写法不同：直接换
+        elif [ -f "$dst" ] && [ ! -L "$dst" ] && cmp -s "$dst" "$src"; then
+            rm "$dst"   # 以前拷过去的同一个文件
         elif [ -e "$dst" ] || [ -L "$dst" ]; then
             mv "$dst" "$dst.bak-$(date +%Y%m%d-%H%M%S)"   # 以前的文件夹（里面是单个文件的链接或你自己的配置）
             echo "  原来的 $dst 已备份"
@@ -152,6 +154,9 @@ link() { # <仓库里的文件夹> <链接位置>
 link "$REPO/yabai" "$HOME/.config/yabai"
 link "$REPO/skhd" "$HOME/.config/skhd"
 link "$REPO/sketchybar" "$HOME/.config/sketchybar"
+# bin/ 里的命令（fantastic-app-launcher、fantastic-clipboard 等）每个链到 ~/.local/bin：终端里能直接用，快捷键也从这里调
+for tool in "$REPO"/bin/*; do link "$tool" "$HOME/.local/bin/$(basename "$tool")"; done
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) todo+=("把 ~/.local/bin 加进 PATH，终端里才能直接用 bin/ 的命令（快捷键不受影响）") ;; esac
 # skhdrc 末尾 .load 这个文件（不进仓库，见 .gitignore）；之后由 aero keys 按 SA 是否加载切换成 sa / native，这里只在没有时先放一个
 [ -e "$REPO/skhd/workspaces.skhdrc" ] || ln -sfn workspaces-native.skhdrc "$REPO/skhd/workspaces.skhdrc"
 
