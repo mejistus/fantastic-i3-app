@@ -110,8 +110,15 @@ RATE_WIDTH=$((RATE_GLYPH + 2 + 4))
 
 # ---- 弹出面板：样式和几种行 ----
 # 面板宽 POPUP_WIDTH，每一行左右都不留白（下面新建的项默认 padding 0，栏上右边的项后面会单独设间距），
-# 内容离面板左右边缘都是 14：文字行靠 icon / label 的 padding_left=14，分隔线、曲线、进度条两边各留 14
+# 内容离面板左右边缘都是 POPUP_PAD（和原生的控制中心面板差不多）：文字行靠 icon / label 的 padding_left，
+# 分隔线、曲线、进度条两边各留 POPUP_PAD。上下的留白由面板后面的材质窗口多出来的一截给（backdrop.swift 的 panelInset）。
+# 能点的行（标题行、"静音"、输入法各行）样式都一样：两边各缩进 HL_INSET，鼠标移上去整行一块圆角亮底（plugins/hover.sh）
 POPUP_WIDTH=300
+POPUP_PAD=16
+HL_INSET=8
+POPUP_CLICKABLE=(width=$((POPUP_WIDTH - 2 * HL_INSET)) padding_left=$HL_INSET padding_right=$HL_INSET
+    icon.padding_left=$((POPUP_PAD - HL_INSET)) background.drawing=on background.color=0x00000000
+    background.corner_radius=6 background.height=24 script="$PLUGINS/hover.sh")
 sketchybar --default padding_left=0 padding_right=0
 
 popup() { # <项> [<事件> …]：面板样式 + 鼠标事件（默认只有点击：点一下打开 / 收起，由 plugins/hover.sh 处理）
@@ -119,7 +126,7 @@ popup() { # <项> [<事件> …]：面板样式 + 鼠标事件（默认只有点
     shift
     # 底色全透明：后面由 aero-helper bar-backdrop 垫一块系统菜单的材质（磨砂、细亮边、系统阴影，和原生的面板一样），
     # 圆角半径要和它（backdrop.swift 的 panelRadius）一样
-    sketchybar --set "$item" popup.align=right popup.y_offset=6 popup.height=26 popup.blur_radius=0 \
+    sketchybar --set "$item" popup.align=right popup.y_offset=14 popup.height=26 popup.blur_radius=0 \
         popup.background.color=0x00000000 popup.background.corner_radius=12 popup.background.border_width=0 \
         popup.background.shadow.drawing=off \
         --subscribe "$item" ${@:-mouse.clicked}
@@ -127,18 +134,17 @@ popup() { # <项> [<事件> …]：面板样式 + 鼠标事件（默认只有点
 
 popup_title() { # <项> <图标> <颜色> [<标题>]：标题行，下面一条分隔线。调用时颜色用 BAR_*：黑白主题下标题也是白的，只有面板内容是彩色。
                 # 标题行最右边一个 ↗（背景图片 icons/open.png，鼠标移上去换成亮的 open-hover.png）：点标题行打开对应的应用或设置页
+    # ↗ 是 18 像素的图缩成一半（9 pt），右边离面板边缘 POPUP_PAD；位置从这一行的亮底左边（缩进 HL_INSET）算起
     sketchybar --add item "$1.title" "popup.$1" \
-        --set "$1.title" width=$POPUP_WIDTH icon="$2" icon.color="$3" icon.font="$FONT:Bold:16.0" \
-            icon.padding_left=14 icon.padding_right=8 label="${4:-}" label.font="$POPUP_FONT:Semibold:13.0" label.color=$FG \
-            background.drawing=on background.color=0x00000000 background.height=24 \
+        --set "$1.title" "${POPUP_CLICKABLE[@]}" icon="$2" icon.color="$3" icon.font="$FONT:Bold:16.0" \
+            icon.padding_right=8 label="${4:-}" label.font="$POPUP_FONT:Semibold:13.0" label.color=$FG \
             background.image="$CONFIG_DIR/icons/open.png" background.image.scale=0.5 \
-            background.image.padding_left=$((POPUP_WIDTH - 23)) \
-            script="$PLUGINS/hover.sh" \
+            background.image.padding_left=$((POPUP_WIDTH - POPUP_PAD - 9 - HL_INSET)) \
         --subscribe "$1.title" mouse.clicked mouse.entered mouse.exited \
         --add item "$1.sep" "popup.$1" \
-        --set "$1.sep" width=$((POPUP_WIDTH - 28)) icon.drawing=off label.drawing=off \
+        --set "$1.sep" width=$((POPUP_WIDTH - 2 * POPUP_PAD)) icon.drawing=off label.drawing=off \
             background.drawing=on background.height=1 background.color=$ITEM_BG \
-            background.padding_left=14 background.padding_right=14
+            background.padding_left=$POPUP_PAD background.padding_right=$POPUP_PAD
 }
 
 popup_rows() { # <项> <行>=<名称> …：左边灰色的名称，右边的值
@@ -146,7 +152,7 @@ popup_rows() { # <项> <行>=<名称> …：左边灰色的名称，右边的值
     shift
     for row in "$@"; do
         sketchybar --add item "$item.${row%%=*}" "popup.$item" \
-            --set "$item.${row%%=*}" width=$POPUP_WIDTH icon="${row#*=}" icon.width=110 icon.padding_left=14 \
+            --set "$item.${row%%=*}" width=$POPUP_WIDTH icon="${row#*=}" icon.width=110 icon.padding_left=$POPUP_PAD \
                 icon.font="$POPUP_FONT:Regular:13.0" icon.color=$POPUP_FG2 label=— label.font="$POPUP_FONT:Medium:13.0" label.color=$FG
     done
 }
@@ -154,7 +160,7 @@ popup_rows() { # <项> <行>=<名称> …：左边灰色的名称，右边的值
 popup_section() { # <项> <行> <文字>：小标题（灰色、小字）
     sketchybar --add item "$1.$2" "popup.$1" \
         --set "$1.$2" width=$POPUP_WIDTH icon.drawing=off label="$3" label.font="$POPUP_FONT:Semibold:11.0" \
-            label.color=$FG_DIM label.padding_left=14
+            label.color=$FG_DIM label.padding_left=$POPUP_PAD
 }
 
 popup_top() { # <项>：进程排行五行（左边进程名，右边用量）
@@ -162,28 +168,28 @@ popup_top() { # <项>：进程排行五行（左边进程名，右边用量）
     popup_section "$1" top.head "占用最多的进程"
     for i in 0 1 2 3 4; do
         sketchybar --add item "$1.top.$i" "popup.$1" \
-            --set "$1.top.$i" width=$POPUP_WIDTH icon=— icon.width=190 icon.padding_left=14 \
+            --set "$1.top.$i" width=$POPUP_WIDTH icon=— icon.width=190 icon.padding_left=$POPUP_PAD \
                 icon.font="$POPUP_FONT:Regular:13.0" icon.color=$FG label.font="$POPUP_FONT:Medium:13.0" label.color=$POPUP_FG2
     done
 }
 
 popup_bar() { # <项> <行>：进度条
-    sketchybar --add slider "$1.$2" "popup.$1" $((POPUP_WIDTH - 28)) \
-        --set "$1.$2" padding_left=14 padding_right=14 icon.drawing=off label.drawing=off slider.knob.drawing=off \
+    sketchybar --add slider "$1.$2" "popup.$1" $((POPUP_WIDTH - 2 * POPUP_PAD)) \
+        --set "$1.$2" padding_left=$POPUP_PAD padding_right=$POPUP_PAD icon.drawing=off label.drawing=off slider.knob.drawing=off \
             slider.background.height=6 slider.background.corner_radius=3 slider.background.color=$ITEM_BG \
             slider.highlight_color=$GREEN
 }
 
 popup_graph() { # <项> <行> <颜色> <填充色>：最近约 9 分钟的曲线（每 2 秒一个点）
-    sketchybar --add graph "$1.$2" "popup.$1" $((POPUP_WIDTH - 28)) \
-        --set "$1.$2" padding_left=14 padding_right=14 icon.drawing=off label.drawing=off background.height=24 \
+    sketchybar --add graph "$1.$2" "popup.$1" $((POPUP_WIDTH - 2 * POPUP_PAD)) \
+        --set "$1.$2" padding_left=$POPUP_PAD padding_right=$POPUP_PAD icon.drawing=off label.drawing=off background.height=24 \
             graph.color="$3" graph.fill_color="$4" graph.line_width=1.5
 }
 
 popup_hint() { # <项> <文字>：一行灰色的操作提示
     sketchybar --add item "$1.hint" "popup.$1" \
         --set "$1.hint" width=$POPUP_WIDTH icon.drawing=off label="$2" label.font="$POPUP_FONT:Regular:11.0" \
-            label.color=$FG_DIM label.padding_left=14
+            label.color=$FG_DIM label.padding_left=$POPUP_PAD
 }
 
 # ---- 日期时间 ----
@@ -209,14 +215,17 @@ sketchybar --add item volume right \
     --subscribe volume volume_change mouse.clicked mouse.scrolled
 popup volume
 popup_title volume 󰕾 $BAR_ORANGE
-sketchybar --add slider volume.slider popup.volume $((POPUP_WIDTH - 28)) \
-    --set volume.slider padding_left=14 padding_right=14 icon.drawing=off label.drawing=off \
+sketchybar --add slider volume.slider popup.volume $((POPUP_WIDTH - 2 * POPUP_PAD)) \
+    --set volume.slider padding_left=$POPUP_PAD padding_right=$POPUP_PAD icon.drawing=off label.drawing=off \
         slider.highlight_color=$ORANGE slider.background.height=6 slider.background.corner_radius=3 \
         slider.background.color=$ITEM_BG slider.knob=󰝥 slider.knob.font="$FONT:Bold:14.0" slider.knob.color=$FG \
         script="$PLUGINS/volume_slider.sh" \
     --subscribe volume.slider mouse.clicked
 popup_rows volume level=音量 muted=静音
-sketchybar --set volume.muted script="$PLUGINS/hover.sh" --subscribe volume.muted mouse.clicked   # 点一下静音 / 取消静音
+# "静音"那一行能点（静音 / 取消静音）：和别的能点的行一样的样式
+# （icon.width 把缩进也算在里面：减掉 HL_INSET，右边的值才和上面几行对齐）
+sketchybar --set volume.muted "${POPUP_CLICKABLE[@]}" icon.width=$((110 - HL_INSET)) \
+    --subscribe volume.muted mouse.clicked mouse.entered mouse.exited
 popup_hint volume "滚轮调节 · 拖动滑块 · 点“静音”那行切换"
 
 # ---- 输入法（label 由 bar-stats 推送）----
@@ -227,10 +236,8 @@ popup_title input 󰌌 $BAR_YELLOW 输入法
 # 每个输入法一行，点一下切过去（plugins/hover.sh → aero-helper input-select）；鼠标移上去整行亮起来，和原生菜单一样
 for i in 0 1 2 3 4; do
     sketchybar --add item input.src.$i popup.input \
-        --set input.src.$i width=$POPUP_WIDTH drawing=off icon.padding_left=14 icon.padding_right=8 \
+        --set input.src.$i "${POPUP_CLICKABLE[@]}" drawing=off icon.padding_right=8 \
             icon.font="$FONT:Bold:14.0" label.font="$POPUP_FONT:Medium:13.0" \
-            background.drawing=off background.color=0x26ffffff background.corner_radius=6 background.height=24 \
-            background.padding_left=6 background.padding_right=6 script="$PLUGINS/hover.sh" \
         --subscribe input.src.$i mouse.clicked mouse.entered mouse.exited
 done
 

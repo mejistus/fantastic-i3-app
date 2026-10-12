@@ -51,6 +51,8 @@ final class BarBackdrop {
     var glass: [Int: NSWindow] = [:]   // SketchyBar 面板的背景窗口号 → 垫在它后面的材质窗口
     var panelTimer: Timer?
     let panelRadius: CGFloat = 12      // 和 sketchybarrc 里 popup.background.corner_radius 一样
+    let panelInset: CGFloat = 8        // 材质比面板上下各多出这么多：面板的上下留白（SketchyBar 的面板第一行贴顶、最后一行贴底）。
+                                       // sketchybarrc 的 popup.y_offset 也多加了这么多，离栏的距离不变
 
     func run() {
         let app = NSApplication.shared
@@ -255,7 +257,8 @@ final class BarBackdrop {
         var keep = Set<Int>()
         for (number, rect) in backgrounds {
             keep.insert(number)
-            let frame = NSRect(x: rect.minX, y: mainHeight - rect.maxY, width: rect.width, height: rect.height)
+            let frame = NSRect(x: rect.minX, y: mainHeight - rect.maxY - panelInset,
+                               width: rect.width, height: rect.height + 2 * panelInset)
             let window = glass[number] ?? makeGlass()
             if glass[number] == nil { glass[number] = window }
             if window.frame != frame {

@@ -13,11 +13,14 @@ AERO="$HOME/Documents/fantastic-i3-macOS/yabai/aero"
 POPUPS="gpu cpu mem disk net input volume battery clock"
 ITEM=${NAME%%.*}
 
-case "$SENDER:$NAME" in   # 鼠标移上去：标题行的 ↗ 变亮；输入法那几行整行亮起来
-    mouse.entered:input.src.*) sketchybar --set "$NAME" background.drawing=on; exit 0 ;;
-    mouse.exited:input.src.*) sketchybar --set "$NAME" background.drawing=off; exit 0 ;;
-    mouse.entered:*) sketchybar --set "$NAME" background.image="$CONFIG_DIR/icons/open-hover.png"; exit 0 ;;
-    mouse.exited:*) sketchybar --set "$NAME" background.image="$CONFIG_DIR/icons/open.png"; exit 0 ;;
+# 面板里能点的行（sketchybarrc 的 POPUP_CLICKABLE）：鼠标移上去整行一块半透明白的圆角亮底，点下时亮一下，
+# 和原生菜单、控制中心一样；标题行的 ↗ 同时变亮
+HOVER=0x26ffffff PRESSED=0x40ffffff
+case "$SENDER:$NAME" in
+    mouse.entered:*.title) sketchybar --set "$NAME" background.color=$HOVER background.image="$CONFIG_DIR/icons/open-hover.png"; exit 0 ;;
+    mouse.exited:*.title) sketchybar --set "$NAME" background.color=0x00000000 background.image="$CONFIG_DIR/icons/open.png"; exit 0 ;;
+    mouse.entered:*) sketchybar --set "$NAME" background.color=$HOVER; exit 0 ;;
+    mouse.exited:*) sketchybar --set "$NAME" background.color=0x00000000; exit 0 ;;
     mouse.clicked:*) ;;
     *) exit 0 ;;
 esac
@@ -49,15 +52,17 @@ case "$NAME" in
         ;;
     input.src.*)   # 输入法面板里的一行：切到这个输入法，收起面板（和系统的输入法菜单一样）
         "$HELPER" input-select "${NAME##*.}"
-        sketchybar --set "$NAME" background.drawing=off
+        sketchybar --set "$NAME" background.color=0x00000000
         close
         ;;
-    volume.muted)
+    volume.muted)   # 面板不收：点下时亮一下
+        sketchybar --set "$NAME" background.color=$PRESSED
+        (sleep 0.15; sketchybar --set "$NAME" background.color=$HOVER) &
         osascript -e 'set volume output muted (not (output muted of (get volume settings)))'
         pkill -USR1 -f "^$HELPER bar-stats"   # 马上刷新面板
         ;;
     *.title)
-        sketchybar --set "$NAME" background.image="$CONFIG_DIR/icons/open.png"
+        sketchybar --set "$NAME" background.color=0x00000000 background.image="$CONFIG_DIR/icons/open.png"
         close
         "$AERO" log "顶栏打开：$ITEM"
         case "$ITEM" in
