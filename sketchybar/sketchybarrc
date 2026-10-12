@@ -263,7 +263,7 @@ sketchybar --add item net right \
         script="$PLUGINS/hover.sh"
 sketchybar --subscribe net mouse.clicked
 
-# ---- 蓝牙（在网络左边）：图标跟着状态变（关着灰、开着、有设备连着），由同一个小 App 推送（../yabai/helper/panels/bluetooth.swift）；
+# ---- 蓝牙（在网络左边）：图标跟着开关变（关着是灰的），由同一个小 App 推送（../yabai/helper/panels/bluetooth.swift）；
 #      点一下开 / 收蓝牙面板（总开关、配对过的设备、连接 / 断开 / 忘记）----
 sketchybar --add item bluetooth right \
     --set bluetooth padding_left=$ITEM_GAP padding_right=0 icon=󰂯 icon.color=$BAR_BLUE label.drawing=off \

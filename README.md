@@ -123,7 +123,7 @@ A SketchyBar bar styled like the i3 polybar (One Dark, Maple Mono NF). It is as 
 
 - A theme toggle: colour or black-and-white icons. Warnings stay yellow / red and the panels stay in colour.
 - GPU (Apple Silicon) and CPU, each a graph and a percentage, then memory and disk (used, counted like Finder).
-- Bluetooth (the icon shows off / on / a device connected), network speed (upload above download, in small type), input method (中 / EN), volume (scroll to change), battery (green above 80 %, yellow from 30 %, red below), and the date and time in the system locale (10月7日 週三 13:55).
+- Bluetooth (grey when off), network speed (upload above download, in small type), input method (中 / EN), volume (scroll to change), battery (green above 80 %, yellow from 30 %, red below), and the date and time in the system locale (10月7日 週三 13:55).
 
 Click an item on the right for a detail panel; click again or move away to close it. The ↗ in a panel's title opens the matching app or settings page.
 

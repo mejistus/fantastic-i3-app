@@ -3,7 +3,8 @@
 //   蓝牙总开关
 //   我的设备：配对过的设备，连着的在前面（图标是蓝的，右边是电量或"已连接"）。点一个在它下面展开：
 //   类型、地址、电量，和"忘记""连接 / 断开"
-// 栏上的蓝牙图标也由这里推：关着、开着、有设备连着各一个样子；设备连上 / 断开时马上推，另外每 5 秒看一次。
+// 栏上的蓝牙图标也由这里推：开着是蓝牙图标，关着是灰的、带斜线的（有设备连着也不加两边的点，太花）；
+// 设备连上 / 断开、开关时马上推，另外每 5 秒看一次。
 // 读蓝牙设备要"蓝牙"权限，App 第一次启动时系统问一次。
 
 import AppKit
@@ -122,11 +123,10 @@ final class BluetoothPanel: BarPanel {
         if isOpen { reload() }
     }
 
-    /// 栏上的蓝牙图标：关着（灰）、开着、有设备连着。和上次一样就不推（SketchyBar 重新加载后 main.swift 让它强推一次）
+    /// 栏上的蓝牙图标：开着、关着（灰）。和上次一样就不推（SketchyBar 重新加载后 main.swift 让它强推一次）
     func pushBar(force: Bool = false) {
         let on = bluetoothPower()
-        let connected = on && pairedDevices().contains { $0.isConnected() }
-        let icon = !on ? "\u{F00B2}" : connected ? "\u{F00B1}" : "\u{F00AF}"
+        let icon = on ? "\u{F00AF}" : "\u{F00B2}"
         let tint = !on ? "0x73ffffff" : barTheme == "mono" ? "0xffffffff" : "0xff61afef"
         guard force || icon + tint != lastBar else { return }
         lastBar = icon + tint
