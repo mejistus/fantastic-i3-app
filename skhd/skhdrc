@@ -82,6 +82,10 @@ alt + shift - return : $HOME/.config/yabai/aero toggle-bar
 alt - d         : $HOME/.config/yabai/new_window_here
 alt + shift - d : $HOME/.config/yabai/new_window_here "$HOME/Documents"
 
+# ⌥O 截图识字、⌥I 截图识公式（LaTeX），结果都放进剪贴板（../yabai/capture，替代 Raycast 里的两个扩展）
+alt - o : $HOME/.config/yabai/capture text
+alt - i : $HOME/.config/yabai/capture formula
+
 # ⌥G = 工作区 1 的默认浏览器：那里有它的窗口就切过去，没有就切到工作区 1 新开一个
 alt - g : $HOME/.config/yabai/focus_browser
 # ⌥ + Caps Lock = ⌥0（工作区 10）：skhd 绑不了 Caps Lock（外接键盘上改成了 🌐/fn），

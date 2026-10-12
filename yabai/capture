@@ -1,0 +1,63 @@
+#!/bin/bash
+# 截图识别，结果放进剪贴板（skhdrc：⌥O / ⌥I，替代 Raycast 里的两个扩展）：
+#   capture text      ⌥O：框选一块屏幕，认出里面的文字（系统自带的 Vision，中英文，不联网）
+#   capture formula   ⌥I：框选一个公式，认出 LaTeX 源码（SiliconFlow 的视觉大模型，和 latex-ocr-queen 一样）
+# 框选时按 Esc 取消。认出来后发一条通知，显示开头一段；失败时通知里写原因。
+# 识别在 aero-helper 里（helper/capture.swift）。
+#
+# 公式要 SiliconFlow 的 API Key：先看环境变量 SILICONFLOW_API_KEY / SILICONFLOW_API_TOKEN，没有就从钥匙串里取
+# （服务名 fantastic-i3-siliconflow）。存进钥匙串（会提示你粘贴 Key，不会留在命令历史里）：
+#   security add-generic-password -U -a "$USER" -s fantastic-i3-siliconflow -w
+
+export PATH=/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin
+AERO="$HOME/.config/yabai/aero"
+STATE="/tmp/yabai-aero-$USER"
+mode=${1:-text}
+case $mode in
+    text) title="截图识字" ;;
+    formula) title="截图识公式" ;;
+    *) echo "用法：capture text|formula" >&2; exit 2 ;;
+esac
+
+notify() { # <标题> <内容>
+    osascript -e 'on run {t, m}' -e 'display notification m with title t' -e 'end run' "$1" "$2" >/dev/null 2>&1
+}
+
+# 正在框选时再按一次不重复开
+mkdir -p "$STATE"
+lock="$STATE/capture.lock"
+mkdir "$lock" 2>/dev/null || exit 0
+image="$STATE/capture-$$.png"
+trap 'rm -f "$image"; rmdir "$lock"' EXIT
+
+screencapture -i -x "$image"
+[ -s "$image" ] || exit 0   # 按了 Esc
+
+if [ "$mode" = formula ]; then
+    key=${SILICONFLOW_API_KEY:-${SILICONFLOW_API_TOKEN:-}}
+    [ -n "$key" ] || key=$(security find-generic-password -s fantastic-i3-siliconflow -w 2>/dev/null)
+    if [ -z "$key" ]; then
+        notify "$title" "没有 SiliconFlow 的 API Key：在终端运行 security add-generic-password -U -a \"\$USER\" -s fantastic-i3-siliconflow -w"
+        exit 1
+    fi
+    notify "$title" "正在识别…"
+    result=$(SILICONFLOW_API_KEY="$key" "$AERO" helper formula "$image" 2>"$STATE/capture-$$.err")
+else
+    result=$("$AERO" helper ocr "$image" 2>"$STATE/capture-$$.err")
+fi
+status=$?
+error=$(cat "$STATE/capture-$$.err" 2>/dev/null)
+rm -f "$STATE/capture-$$.err"
+
+if [ $status -ne 0 ] || [ -z "$result" ]; then
+    notify "$title" "${error:-没认出东西}"
+    "$AERO" log "$title 失败：${error:-没认出东西}"
+    exit 1
+fi
+printf '%s' "$result" | pbcopy
+lines=$(printf '%s\n' "$result" | wc -l | tr -d ' ')
+if [ "$mode" = formula ]; then
+    notify "已复制 LaTeX" "$(printf '%s' "$result" | head -c 120)"
+else
+    notify "已复制 $lines 行文字" "$(printf '%s' "$result" | head -c 120)"
+fi

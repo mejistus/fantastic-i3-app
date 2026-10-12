@@ -10,6 +10,8 @@
 //       效果持续到重新登录。yabairc 每次启动都关掉它们：⌘⇥ 是窗口列表、⌘Space 是应用列表（window_switcher）。
 //   aero-helper menubar-autohide on|off
 //       系统菜单栏自动隐藏 / 常显（和系统设置里的开关一样，马上生效）。现在总是常显，SketchyBar 盖在它上面（aero bar-apply）。
+//   aero-helper ocr <图片> / aero-helper formula <图片>
+//       截图识别（../capture，⌥O / ⌥I）：认出文字 / 公式的 LaTeX，输出到 stdout（capture.swift）。
 //   aero-helper input-select <i>
 //       切到输入法面板第 i 行的输入法（顶栏输入法面板里点一行时调）。
 //   aero-helper switcher [--select 窗口id] [--apps | --launchpad] [--font-size N] [--width 屏幕宽度%] [--rows N]
@@ -782,6 +784,10 @@ case "native-hotkeys":
     setNativeHotkeys(arguments.dropFirst().first == "on")
 case "menubar-autohide":
     setMenuBarAutohide(arguments.dropFirst().first == "on")
+case "ocr":
+    recognizeText(arguments.dropFirst().first ?? "")
+case "formula":
+    recognizeFormula(arguments.dropFirst().first ?? "")
 case "input-select":
     selectInputSource(Int(arguments.dropFirst().first ?? "") ?? -1)
 case "app-names":

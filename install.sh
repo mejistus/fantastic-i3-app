@@ -59,6 +59,7 @@ EOF
   ⌘Space                  应用列表（代替 Spotlight），打字搜索，回车打开
   ⌥D / ⌥⇧D                在当前工作区开 Finder / 新开一个打开文稿的 Finder 窗口
   ⌥G                      工作区 1 的浏览器
+  ⌥O / ⌥I                 截图识字 / 截图识公式（LaTeX），结果复制到剪贴板
 EOF
     title "⌃S 服务模式：先按 ⌃S，松开再按下面的键"
     cat <<'EOF'
