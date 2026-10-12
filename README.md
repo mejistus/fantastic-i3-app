@@ -191,4 +191,6 @@ Once it's loaded, missing desktops are created automatically. Run `setup-sa` aga
 | [`yabai/new_window_here`](yabai/new_window_here) | ⌥D and ⌥⇧D |
 | [`yabai/capture`](yabai/capture) | ⌥O and ⌥I (recognition in `yabai/helper/capture.swift`) |
 
-The other folders here (`kitty/`, `nvim/`, `aerospace/`) are standalone configs; the installer doesn't touch them.
+[`bin/`](bin) holds small standalone tools: `center-window` (centres the front window; the AeroSpace config calls it), `freemps` (allocates a given amount of GPU memory on the MPS device with PyTorch, 8 GB by default), `list_brew_packages` (Homebrew formulae and casks by disk size) and `nvim-opener.sh` (opens a file in Neovim in kitty). Put them on your `PATH` if you want them, for example by copying them to `~/.local/bin`.
+
+The other folders here (`kitty/`, `aerospace/`) are standalone configs; the installer doesn't touch them. For Neovim use [NextVim](https://github.com/mejistus/NextVim).

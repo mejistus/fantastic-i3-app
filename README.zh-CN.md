@@ -191,4 +191,6 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | [`yabai/new_window_here`](yabai/new_window_here) | ⌥D 和 ⌥⇧D |
 | [`yabai/capture`](yabai/capture) | ⌥O 和 ⌥I（识别在 `yabai/helper/capture.swift`） |
 
-这里的其它文件夹（`kitty/`、`nvim/`、`aerospace/`）是独立的配置，安装脚本不碰它们。
+[`bin/`](bin) 里是几个独立的小工具：`center-window`（把最前面的窗口居中，AeroSpace 配置里用）、`freemps`（用 PyTorch 在 MPS 上占用指定大小的显存，默认 8 GB）、`list_brew_packages`（按占用空间列出 Homebrew 装的包）、`nvim-opener.sh`（在 kitty 里用 Neovim 打开文件）。要用的话放到 `PATH` 上，比如拷到 `~/.local/bin`。
+
+这里的其它文件夹（`kitty/`、`aerospace/`）是独立的配置，安装脚本不碰它们。Neovim 配置用 [NextVim](https://github.com/mejistus/NextVim)。
