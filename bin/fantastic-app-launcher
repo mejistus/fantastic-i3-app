@@ -17,7 +17,7 @@
 # 绑定：skhdrc 中的 alt - tab（应用）、cmd - tab（窗口）和 cmd - space（直接弹出应用列表）；
 # macOS 自带的 ⌘⇥ 和 Spotlight 的 ⌘Space 由 yabairc 关掉
 
-HOLD_SECONDS=0.25
+HOLD_SECONDS=0.15   # 按住超过这么久算长按（弹出列表）；从启动器开始运行算起，实际比按下时晚几十毫秒
 FONT_SIZE=28      # 默认字号（用 ⌘+ / ⌘- 调过之后以调过的为准）
 WIDTH=55          # 列表宽度（屏幕宽度的百分比）
 ROWS=12           # 最多显示几行
