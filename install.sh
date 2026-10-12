@@ -160,7 +160,7 @@ for tool in "$REPO"/bin/*; do link "$tool" "$HOME/.local/bin/$(basename "$tool")
 if [ -f "$REPO/../tmux/tmux.conf" ]; then
     link "$(cd "$REPO/../tmux" && pwd)" "$HOME/.config/tmux"
     if [ -e "$HOME/.tmux.conf" ]; then
-        todo+=("~/.tmux.conf 会盖过 ~/.config/tmux/tmux.conf（tmux 只读找到的第一个）：确认不需要后删掉它")
+        todo+=("~/.tmux.conf 也会被 tmux 读（先读它，再读 ~/.config/tmux/tmux.conf），里面的设置会混进来：确认不需要后删掉它")
     fi
 fi
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) todo+=("把 ~/.local/bin 加进 PATH，终端里才能直接用 bin/ 的命令（快捷键不受影响）") ;; esac
