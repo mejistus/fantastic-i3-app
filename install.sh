@@ -14,8 +14,9 @@
 #   3. 逐个检查 yabai、skhd、SketchyBar、jq 和字体 Maple Mono NF、sketchybar-app-font，没装的用 brew 装
 #   4. 链接配置：~/.config/yabai/yabairc、~/.config/skhd/skhdrc、~/.config/sketchybar（原来的会备份）
 #   5. 关掉调度中心的"根据最近的使用情况自动重新排列空间"（否则桌面顺序会变，工作区编号就乱了）
-#   6. 编译 aero-helper（窗口切换列表、顶栏的数据和底板、锁屏等，helper/*.swift）；菜单栏设为自动隐藏（顶上换成 SketchyBar）
-#   7. 启动 yabai、skhd、SketchyBar 服务（SketchyBar 已经在跑就重新加载，用上链接好的配置），检查辅助功能权限
+#   6. 编译 aero-helper（窗口切换列表、顶栏的数据和底板、锁屏等，helper/*.swift）
+#   7. 启动 yabai、skhd、SketchyBar 服务（SketchyBar 已经在跑就重新加载，用上链接好的配置），检查辅助功能权限。
+#      SketchyBar 加载时把系统菜单栏设为自动隐藏、顶上换成它；~/.config/fantastic-i3/bar 里写 native 则反过来
 #   8. 检查桌面够不够 17 个
 #   9. 列出快捷键（第一次用建议截图保存）
 #
@@ -69,7 +70,7 @@ EOF
 EOF
     title "其它"
     cat <<'EOF'
-  ⌥⇧↩                     临时关掉顶栏，换回系统菜单栏；再按一次换回来
+  ⌥⇧↩                     SketchyBar 和系统菜单栏之间临时切换
   ⌥⇧⇥                     把当前工作区挪到下一个显示器（要脚本扩展）
 EOF
     echo "鼠标移到屏幕最上面会出现系统菜单栏。脚本扩展见 yabai/setup-sa（没有它切工作区有滑动动画）"
@@ -175,12 +176,6 @@ fi
 [ -x "$HOME/.cache/fantastic-i3/aero-helper" ] ||
     die "aero-helper 编译失败：swiftc -O -o ~/.cache/fantastic-i3/aero-helper $HOME_REPO/yabai/helper/*.swift"
 ok "aero-helper"
-# SketchyBar 每次加载也会做；这里先做，yabai 启动时就按自动隐藏排窗口
-if "$AERO" helper menubar-autohide on; then
-    ok "菜单栏：自动隐藏（顶上换成 SketchyBar）"
-else
-    todo+=("系统设置 → 控制中心 → 自动隐藏和显示菜单栏：选\"始终\"（顶上换成了 SketchyBar）")
-fi
 
 # ---- 7. 服务和权限 ----
 for app in AeroSpace AltTab; do
@@ -205,7 +200,13 @@ skhd_ok=0
 [ -n "$skhd_pid" ] && [ "$(pgrep -x skhd || true)" = "$skhd_pid" ] && skhd_ok=1   # 没有权限时 skhd 会退出、被 launchd 重启
 if [ "$yabai_ok$skhd_ok" = 11 ]; then
     ok "yabai、skhd 在运行，有辅助功能权限"
-    "$AERO" reload   # yabai 先于 SketchyBar 启动时，yabairc 里给顶栏留空间的设置还没生效
+    "$AERO" bar-apply   # yabai 先于 SketchyBar 启动时，给顶栏留的位置还没设
+    "$AERO" reload
+    if [ "$(cat "$HOME/.config/fantastic-i3/bar" 2>/dev/null)" = native ]; then
+        ok "顶栏：常显的系统菜单栏，SketchyBar 关着（⌥⇧↩ 临时打开；~/.config/fantastic-i3/bar 里写的 native）"
+    else
+        ok "顶栏：SketchyBar，系统菜单栏自动隐藏"
+    fi
 else
     open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
     todo+=("系统设置 → 隐私与安全性 → 辅助功能：打开 yabai 和 skhd（没有就点 + 从 /opt/homebrew/bin 添加），然后再运行一次本脚本")

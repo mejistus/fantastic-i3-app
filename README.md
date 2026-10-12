@@ -20,8 +20,8 @@ From a clone, run `bash install.sh` in it instead. The script is safe to rerun. 
 2. Clones the repo to `~/Documents/fantastic-i3-macOS`, where the configs expect it. A clone somewhere else, such as the `macos` submodule of fantastic-i3, gets a link at that path.
 3. Checks yabai, skhd, SketchyBar, jq and the fonts, and installs the missing ones.
 4. Links the configs into `~/.config`. Existing files are backed up.
-5. Turns off "Automatically rearrange Spaces based on most recent use" and sets the menu bar to auto-hide.
-6. Builds aero-helper (window switcher, bar stats) and starts the services.
+5. Turns off "Automatically rearrange Spaces based on most recent use".
+6. Builds aero-helper (window switcher, bar stats) and starts the services. SketchyBar then sets the macOS menu bar to auto-hide and takes its place.
 
 Then it lists what's left to do by hand:
 
@@ -87,7 +87,7 @@ To forget a remembered app, delete its line in the file and press ⌃S Esc.
 
 | Key | Action |
 |---|---|
-| <kbd>⌥⇧↩</kbd> | Turn the top bar off for now and bring back the always-visible macOS menu bar. Press again, or reload SketchyBar, to switch back |
+| <kbd>⌥⇧↩</kbd> | Switch between the top bar and the always-visible macOS menu bar for now. Logging in or reloading SketchyBar goes back to [your choice](#top-bar) |
 
 ## Fixed workspaces
 
@@ -134,6 +134,8 @@ Click an item on the right for a detail panel; click again or move away to close
 | Clock | Lunar date, week number |
 
 Like the native auto-hiding menu bar, the bar sits below windows: tiled windows stay clear of it, floating ones can cover it.
+
+Prefer the macOS menu bar? `echo native > ~/.config/fantastic-i3/bar` keeps it always visible with SketchyBar off, at login and on every reload; ⌥⇧↩ still swaps for now. Delete the file to go back.
 
 <details>
 <summary>How it's built</summary>

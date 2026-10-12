@@ -20,8 +20,8 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 2. 把仓库克隆到 `~/Documents/fantastic-i3-macOS`，配置里写的就是这个路径。克隆在别处的（比如 fantastic-i3 的子模块 `macos`），在这个路径建一个链接。
 3. 逐个检查 yabai、skhd、SketchyBar、jq 和字体，没装的装上。
 4. 把配置链接到 `~/.config`，原来的文件会备份。
-5. 关掉"根据最近的使用情况自动重新排列空间"，把菜单栏设为自动隐藏。
-6. 编译 aero-helper（窗口切换器、顶栏数据），启动各项服务。
+5. 关掉"根据最近的使用情况自动重新排列空间"。
+6. 编译 aero-helper（窗口切换器、顶栏数据），启动各项服务。SketchyBar 启动后把系统菜单栏设为自动隐藏，自己顶上。
 
 然后列出还要手动做的事：
 
@@ -87,7 +87,7 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 
 | 快捷键 | 作用 |
 |---|---|
-| <kbd>⌥⇧↩</kbd> | 临时关掉顶栏，换回常显的系统菜单栏。再按一次（或重新加载 SketchyBar）换回来 |
+| <kbd>⌥⇧↩</kbd> | 在顶栏和常显的系统菜单栏之间临时切换。重新登录或重新加载 SketchyBar 后回到[你选的那个](#顶栏) |
 
 ## 固定工作区
 
@@ -134,6 +134,8 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 | 时钟 | 农历、周数 |
 
 和系统的自动隐藏菜单栏一样，顶栏在窗口下面：平铺的窗口让开它，浮动的窗口可以盖住它。
+
+更想用系统菜单栏？`echo native > ~/.config/fantastic-i3/bar`，之后开机、重新加载都是常显的系统菜单栏、SketchyBar 关着；⌥⇧↩ 照样临时切换。删掉这个文件就换回来。
 
 <details>
 <summary>实现</summary>
