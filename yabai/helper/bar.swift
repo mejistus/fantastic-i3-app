@@ -388,12 +388,10 @@ final class BarStats {
     /// 重新加载 SketchyBar 时这个进程会被停掉、曲线也会清零：停掉前存进 historyFile，新进程启动时读回来补上
     var history: [String: [Double]] = ["cpu": [], "gpu": []]
     let historyLength = 272
-    // 存的是平滑过的值（改成平滑之前存的是原始值，换了文件名，旧的不读）
-    let historyFile = "/tmp/yabai-aero-\(NSUserName())/bar-history-smooth.json"
-    /// 曲线上画的 CPU / GPU：指数平滑（每次往新值走 35%，约等于最近 6 秒的加权平均）。2 秒一采的原始值上下跳 10–20%，
-    /// 面板里一个点一个像素，画出来是一排三角波。栏上的百分比数字还是这一刻的原始值
-    let smoothing = 0.35
-    var smoothed: [String: Double] = [:]
+    // 存原始值（中间有一版存的是平滑过的，用的是别的文件名，不读）
+    let historyFile = "/tmp/yabai-aero-\(NSUserName())/bar-history-raw.json"
+    /// 面板里的曲线（9 分钟）画之前做前后对称的高斯平滑，σ = 3 个点（6 秒），见 smoothedHistory。栏上的小曲线画原始值
+    let historySigma = 3.0
     var termSource: DispatchSourceSignal?
     let memoryTotal = Double(ProcessInfo.processInfo.physicalMemory)
     let store = SCDynamicStoreCreate(nil, "aero-helper" as CFString, nil, nil)
@@ -488,20 +486,33 @@ final class BarStats {
         for item in ["cpu", "gpu"] {
             let values = Array((saved[item] ?? []).suffix(historyLength))
             history[item] = values
-            smoothed[item] = values.last
             if !values.isEmpty { args += ["--push", item] + values.map { String(format: "%.3f", $0) } }
         }
         send(args)
     }
 
-    /// 平滑后记进历史，返回平滑后的值（推给曲线的就是它）
+    /// 记进历史，返回原样的值（栏上的小曲线推的就是它）
     @discardableResult
-    func record(_ item: String, _ raw: Double) -> Double {
-        let value = smoothed[item].map { $0 + smoothing * (raw - $0) } ?? raw
-        smoothed[item] = value
+    func record(_ item: String, _ value: Double) -> Double {
         history[item, default: []].append(value)
         if history[item]!.count > historyLength { history[item]!.removeFirst(history[item]!.count - historyLength) }
         return value
+    }
+
+    /// 面板曲线的平滑：前后对称的高斯平均（σ = historySigma 个点）。2 秒一个点、一个点一个像素，原始值上下跳 10–20%，
+    /// 画出来是一排三角波。整段历史每次都重推，所以可以前后都看，不像只往前看的平均那样让曲线落后几秒；
+    /// 两头的点不够就按有的点重新归一，最新那头不会被拉低
+    func smoothedHistory(_ values: [Double]) -> [Double] {
+        let radius = Int(historySigma * 3)
+        let weights = (0...radius).map { exp(-Double($0 * $0) / (2 * historySigma * historySigma)) }
+        return values.indices.map { i in
+            var sum = 0.0, total = 0.0
+            for k in max(0, i - radius)...min(values.count - 1, i + radius) {
+                sum += weights[abs(k - i)] * values[k]
+                total += weights[abs(k - i)]
+            }
+            return sum / total
+        }
     }
 
     /// 弹出面板里的曲线：SketchyBar 画弹出面板里的曲线时最新的点在最左边，和栏上（最新在右）反着。
@@ -509,8 +520,8 @@ final class BarStats {
     /// （曲线是个环形缓冲区，推满一圈后第 i 个推进去的点画在第 i 个位置，第 0 个在最左边，其余从第 width-1 个往右排）。
     /// 不够一圈的用 0 补在最旧那头
     func historyPush(_ item: String) -> [String] {
-        let values = history[item] ?? []
-        let full = [Double](repeating: 0, count: max(0, historyLength - values.count)) + values.suffix(historyLength)
+        let values = smoothedHistory(Array((history[item] ?? []).suffix(historyLength)))
+        let full = [Double](repeating: 0, count: max(0, historyLength - values.count)) + values
         let order = [full[0]] + full[1...].reversed()
         return ["--push", "\(item).history"] + order.map { String(format: "%.3f", $0) }
     }
