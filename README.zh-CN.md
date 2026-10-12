@@ -17,9 +17,9 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 已经克隆了仓库，就在里面运行 `bash install.sh`。脚本可以重复运行，它会：
 
 1. 没有 Homebrew 就装上。会问开机密码，顺带装好 Xcode 命令行工具。
-2. 把仓库克隆到 `~/Documents/fantastic-i3-macOS`，配置里写的就是这个路径。克隆在别处的（比如 fantastic-i3 的子模块 `macos`），在这个路径建一个链接。
+2. 用 curl 跑的，把仓库克隆到看不见的 `~/.local/share/fantastic-i3-macOS`。已经克隆了的放在哪里都行（比如 fantastic-i3 的子模块 `macos`）。
 3. 逐个检查 yabai、skhd、SketchyBar、jq 和字体，没装的装上。
-4. 把配置链接到 `~/.config`，原来的文件会备份。
+4. 把仓库里的 `yabai`、`skhd`、`sketchybar` 三个文件夹链接成 `~/.config/yabai`、`~/.config/skhd`、`~/.config/sketchybar`，原来的备份成 `.bak-日期`。配置和脚本之间都经由 `~/.config` 互相找，别处不建任何链接。
 5. 关掉"根据最近的使用情况自动重新排列空间"。
 6. 编译 aero-helper（窗口切换器、顶栏数据），启动各项服务。系统菜单栏设为常显，SketchyBar 盖在它上面。
 
@@ -30,7 +30,7 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 
 最后打印一张快捷键表，建议截图保存；`install.sh --keys` 可以再打印一次。
 
-Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3"能不能使用你的位置和蓝牙，两个都请点允许：macOS 只把 Wi-Fi 名称给有定位权限的程序，蓝牙面板要蓝牙权限才能列出你的设备。
+Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不能使用你的位置、"fantastic-i3-bluetooth"能不能使用蓝牙，两个都请点允许：macOS 只把 Wi-Fi 名称给有定位权限的程序，蓝牙面板要蓝牙权限才能列出你的设备。
 
 ## 快捷键
 
@@ -145,7 +145,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3"能不能使�
 <details>
 <summary>实现</summary>
 
-配置在 [`sketchybar/`](sketchybar)。网络和蓝牙面板是另一个小 App（`BarPanels.app`，由 `aero panel` 编译、启动）画的原生面板，因为 SketchyBar 的面板里放不了输入框；栏上的蓝牙图标也由它更新。GPU、CPU、内存、磁盘、网络、输入法和其它面板的内容来自 `aero-helper bar-stats`（[`yabai/helper/bar.swift`](yabai/helper/bar.swift)）；前 5 个进程只在面板开着时才算。
+配置在 [`sketchybar/`](sketchybar)。网络和蓝牙面板是两个小 App 画的原生面板：`fantastic-i3-wifi` 和 `fantastic-i3-bluetooth`（由 `aero panel` 编译、启动，源码在 [`yabai/helper/panels/`](yabai/helper/panels)），因为 SketchyBar 的面板里放不了输入框；栏上的蓝牙图标也由蓝牙那个更新。GPU、CPU、内存、磁盘、网络、输入法和其它面板的内容来自 `aero-helper bar-stats`（[`yabai/helper/bar.swift`](yabai/helper/bar.swift)）；前 5 个进程只在面板开着时才算。
 
 背景是 `aero-helper bar-backdrop`（[`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)）。和真正的菜单栏一样，它显示壁纸顶部、重度模糊再稍微压暗。它在真正的菜单栏和状态图标之上（层级 26），把它们挡在顶栏下面；下拉菜单和控制中心照样开在它上面。它只在普通桌面上，所以跟着桌面一起滑动，不会盖住原生全屏的应用（视频、幻灯片）。它每 0.2 秒看一次有没有不走原生全屏、却盖满整块屏的窗口（比如 PowerPoint 放映）；有的话顶栏（`topmost=off`）和底板一起降到窗口下面，等它没了再回来。
 
@@ -180,6 +180,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3"能不能使�
 | [`yabai/setup-sa`](yabai/setup-sa) | 脚本扩展的安装 |
 | [`skhd/`](skhd) | 快捷键 |
 | [`sketchybar/`](sketchybar) | 顶栏 |
-| [`window_switcher`](window_switcher) | ⌥⇥、⌘⇥ 和 ⌘Space |
+| [`yabai/window_switcher`](yabai/window_switcher) | ⌥⇥、⌘⇥ 和 ⌘Space |
+| [`yabai/new_window_here`](yabai/new_window_here) | ⌥D 和 ⌥⇧D |
 
 这里的其它文件夹（`kitty/`、`nvim/`、`aerospace/`）是独立的配置，安装脚本不碰它们。

@@ -12,7 +12,7 @@
 #   aero toggle-space-float                                  service 模式的 f：当前工作区的窗口全部平铺 / 全部浮动
 #   aero ensure-focus                                        切桌面后焦点不在这个桌面的窗口上时补一下（space_changed 信号调）
 #   aero toggle-bar                                          ⌥⇧↩：临时藏起 / 放出 SketchyBar（下面总是常显的系统菜单栏）
-#   aero panel toggle wifi|bluetooth | close | start          顶栏网络项、蓝牙项的原生面板（helper/panels，单独的 App）
+#   aero panel toggle wifi|bluetooth | close | start          顶栏网络项、蓝牙项的原生面板（helper/panels，各是一个小 App）
 #   aero bar-apply [sketchybar|native]                       顶栏用哪个；不带参数照 ~/.config/fantastic-i3/bar（sketchybarrc 调）
 #   aero remember-layout                                     ⌃S M：记住当前应用的布局（平铺 / 浮动），以后新开的窗口都这样
 #   aero remember-workspace                                  ⌃S W：记住当前应用的工作区，以后新开的窗口都去那里
@@ -104,54 +104,69 @@ helper() {
     "$HELPER" "$@"
 }
 
-# 顶栏的原生面板（helper/panels：Wi-Fi、蓝牙）：单独编译成一个 App（BarPanels.app），因为 macOS 只把 Wi-Fi 名称给
-# 有定位权限的程序、读蓝牙设备要蓝牙权限，这两个权限都只能给 App（第一次启动时系统各问一次）。
-# 常驻后台：SIGUSR1 打开 / 收起 panel-anchor 里写的那个面板，SIGUSR2 都收起，SIGHUP 把栏上的蓝牙图标再推一遍
-PANELS_APP="$HOME/.cache/fantastic-i3/BarPanels.app"
-PANELS_BIN="$PANELS_APP/Contents/MacOS/bar-panels"
-panels_app() { # 需要时编译、签名；没在跑就启动。输出进程号
-    local old="$HOME/.cache/fantastic-i3/WiFiPanel.app"   # 以前只有 Wi-Fi 面板时的 App
-    if [ -d "$old" ]; then
-        pkill -f "^$old/" 2>/dev/null
-        rm -rf "$old"
-    fi
-    if [ ! -x "$PANELS_BIN" ] || [ -n "$(find "$HERE/helper/panels" -name '*.swift' -newer "$PANELS_BIN" 2>/dev/null)" ]; then
-        mkdir -p "$PANELS_APP/Contents/MacOS"
-        cat >"$PANELS_APP/Contents/Info.plist" <<'PLIST'
+# 顶栏的原生面板（helper/panels）：fantastic-i3-wifi、fantastic-i3-bluetooth，各是一个小 App（文件名、显示名都是这个）
+# （~/.cache/fantastic-i3/fantastic-i3-<名字>.app，源码是 common.swift 加各自的 <名字>.swift），因为 macOS 只把
+# Wi-Fi 名称给有定位权限的程序、读蓝牙设备要蓝牙权限，这些权限都只能给 App（第一次启动时系统问一次）。
+# 常驻后台：SIGUSR1 打开 / 收起（位置在 $STATE/<名字>-anchor），SIGUSR2 收起，SIGHUP 让蓝牙那个把栏上的图标再推一遍
+PANELS="wifi bluetooth"
+panel_bin() { echo "$HOME/.cache/fantastic-i3/fantastic-i3-$1.app/Contents/MacOS/fantastic-i3-$1"; }
+panel_stale() { # <名字>：没编译过，或源码比它新
+    local bin
+    bin=$(panel_bin "$1")
+    [ ! -x "$bin" ] || [ -n "$(find "$HERE/helper/panels/common.swift" "$HERE/helper/panels/$1.swift" -newer "$bin" 2>/dev/null)" ]
+}
+panel_app() { # <名字>：需要时编译、签名；没在跑就启动。输出进程号
+    local name=$1 app bin usage pid old
+    app="$HOME/.cache/fantastic-i3/fantastic-i3-$name.app"
+    bin=$(panel_bin "$name")
+    for old in WiFiPanel BarPanels; do   # 以前的名字
+        if [ -d "$HOME/.cache/fantastic-i3/$old.app" ]; then
+            pkill -f "^$HOME/.cache/fantastic-i3/$old.app/" 2>/dev/null
+            rm -rf "$HOME/.cache/fantastic-i3/$old.app"
+        fi
+    done
+    if panel_stale "$name"; then
+        case $name in
+            wifi) usage='<key>NSLocationUsageDescription</key><string>显示附近的 Wi-Fi 和现在连着的网络的名字：macOS 只把 Wi-Fi 名称给有定位权限的程序。</string>
+    <key>NSLocationWhenInUseUsageDescription</key><string>显示附近的 Wi-Fi 和现在连着的网络的名字：macOS 只把 Wi-Fi 名称给有定位权限的程序。</string>' ;;
+            bluetooth) usage='<key>NSBluetoothAlwaysUsageDescription</key><string>列出配对过的蓝牙设备，连接、断开它们，在顶栏显示蓝牙开没开。</string>' ;;
+        esac
+        mkdir -p "$app/Contents/MacOS"
+        cat >"$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key><string>io.github.mejistus.fantastic-i3.panels</string>
-    <key>CFBundleName</key><string>fantastic-i3</string>
-    <key>CFBundleExecutable</key><string>bar-panels</string>
+    <key>CFBundleIdentifier</key><string>io.github.mejistus.fantastic-i3.$name</string>
+    <key>CFBundleName</key><string>fantastic-i3-$name</string>
+    <key>CFBundleDisplayName</key><string>fantastic-i3-$name</string>
+    <key>CFBundleExecutable</key><string>fantastic-i3-$name</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
-    <key>NSLocationUsageDescription</key><string>顶栏的 Wi-Fi 面板显示附近的 Wi-Fi 和现在连着的网络的名字：macOS 只把 Wi-Fi 名称给有定位权限的程序。</string>
-    <key>NSLocationWhenInUseUsageDescription</key><string>顶栏的 Wi-Fi 面板显示附近的 Wi-Fi 和现在连着的网络的名字：macOS 只把 Wi-Fi 名称给有定位权限的程序。</string>
-    <key>NSBluetoothAlwaysUsageDescription</key><string>顶栏的蓝牙面板列出配对过的设备，连接、断开它们。</string>
+    $usage
 </dict>
 </plist>
 PLIST
-        if swiftc -O -swift-version 5 -o "$PANELS_BIN.$$" "$HERE"/helper/panels/*.swift 2>/dev/null; then
-            mv -f "$PANELS_BIN.$$" "$PANELS_BIN"
-            codesign --force --sign - --identifier io.github.mejistus.fantastic-i3.panels "$PANELS_APP" >/dev/null 2>&1
-            pkill -f "^$PANELS_BIN" 2>/dev/null   # 旧版本还在跑：换成新的
+        if swiftc -O -swift-version 5 -parse-as-library -o "$bin.$$" \
+            "$HERE/helper/panels/common.swift" "$HERE/helper/panels/$name.swift" 2>/dev/null; then
+            mv -f "$bin.$$" "$bin"
+            codesign --force --sign - --identifier "io.github.mejistus.fantastic-i3.$name" "$app" >/dev/null 2>&1
+            pkill -f "^$bin" 2>/dev/null   # 旧版本还在跑：换成新的
+            for _ in $(seq 20); do pgrep -qf "^$bin" || break; sleep 0.1; done
         else
-            rm -f "$PANELS_BIN.$$"
-            notify "顶栏面板编译失败：swiftc -O -o $PANELS_BIN $HERE/helper/panels/*.swift"
+            rm -f "$bin.$$"
+            notify "fantastic-i3-$name 编译失败：swiftc -parse-as-library -o $bin helper/panels/common.swift helper/panels/$name.swift"
             return 1
         fi
     fi
-    local pid
-    pid=$(pgrep -f "^$PANELS_BIN" | head -1)
+    pid=$(pgrep -f "^$bin" | head -1)
     if [ -z "$pid" ]; then
-        open -g -a "$PANELS_APP" || return 1
+        open -g -a "$app" || return 1
         for _ in $(seq 30); do
-            pid=$(pgrep -f "^$PANELS_BIN" | head -1)
+            pid=$(pgrep -f "^$bin" | head -1)
             [ -n "$pid" ] && break
             sleep 0.1
         done
@@ -162,31 +177,37 @@ PLIST
 
 # aero panel toggle wifi|bluetooth / close / start：栏上的网络项、蓝牙项点一下（plugins/hover.sh）开 / 收面板
 cmd_panel() {
-    local pid
+    local name pid
     case ${1:-} in
-        start)   # sketchybarrc 每次加载时调：已经在跑就让它把蓝牙图标再推一遍（栏重建过）
-            pid=$(pgrep -f "^$PANELS_BIN" | head -1)
-            if [ -n "$pid" ] && [ -z "$(find "$HERE/helper/panels" -name '*.swift' -newer "$PANELS_BIN" 2>/dev/null)" ]; then
-                kill -HUP "$pid"
-            else
-                panels_app >/dev/null
-            fi ;;
-        close) pkill -USR2 -f "^$PANELS_BIN" 2>/dev/null ;;
+        start)   # sketchybarrc 每次加载时调：都跑起来；已经在跑的蓝牙那个把栏上的图标再推一遍（栏重建过）
+            for name in $PANELS; do
+                pid=$(pgrep -f "^$(panel_bin "$name")" | head -1)
+                if [ -n "$pid" ] && ! panel_stale "$name"; then
+                    [ "$name" = bluetooth ] && kill -HUP "$pid"
+                else
+                    panel_app "$name" >/dev/null
+                fi
+            done ;;
+        close) for name in $PANELS; do pkill -USR2 -f "^$(panel_bin "$name")" 2>/dev/null; done ;;
         toggle)
-            local name=${2:-wifi} item display anchor
+            local item display anchor other
+            name=${2:-wifi}
             case $name in
                 wifi) item=net ;;   # 网速那一组最左边的网络图标
                 bluetooth) item=bluetooth ;;
                 *) return 2 ;;
             esac
+            for other in $PANELS; do
+                [ "$other" = "$name" ] || pkill -USR2 -f "^$(panel_bin "$other")" 2>/dev/null
+            done
             # 面板的左上角：这一项在鼠标那块屏上的左边，栏下面 6（和 SketchyBar 的面板一样）
             display=$(yabai -m query --displays --display mouse 2>/dev/null | jq -c .frame)
             anchor=$(sketchybar --query "$item" | jq -r --argjson d "${display:-null}" '
                 [.bounding_rects[] | {x: .origin[0], y: .origin[1], h: .size[1]} | select(.x > -9000)]
                 | (map(select($d == null or (.x >= $d.x and .x < $d.x + $d.w))) + .)[0]
                 | "\(.x) \(.y + .h + 6)"')
-            mkdir -p "$STATE" && echo "$name $anchor" >"$STATE/panel-anchor"
-            pid=$(panels_app) || return 1
+            mkdir -p "$STATE" && echo "$anchor" >"$STATE/$name-anchor"
+            pid=$(panel_app "$name") || return 1
             kill -USR1 "$pid"
             ;;
         *) return 2 ;;

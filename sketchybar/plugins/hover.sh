@@ -9,7 +9,7 @@
 # 有自己脚本的项（音量、电池、日期）在它们的脚本里把点击转给这里。网速拆成了 net / net.rx / net.tx 三块，都按 net 处理。
 STATE="/tmp/yabai-aero-$USER"
 HELPER="$HOME/.cache/fantastic-i3/aero-helper"
-AERO="$HOME/Documents/fantastic-i3-macOS/yabai/aero"
+AERO="$HOME/.config/yabai/aero"
 POPUPS="gpu cpu mem disk net input volume battery clock"
 ITEM=${NAME%%.*}
 
@@ -31,7 +31,7 @@ close() {
     pkill -USR2 -f "^$HELPER bar-backdrop"   # 面板后面的材质跟着收（见 backdrop.swift 的 syncPanels）
 }
 
-PANELS_BIN="$HOME/.cache/fantastic-i3/BarPanels.app/Contents/MacOS/bar-panels"   # Wi-Fi、蓝牙面板（aero panel）
+PANELS="^$HOME/.cache/fantastic-i3/fantastic-i3-(wifi|bluetooth)\.app/"   # Wi-Fi、蓝牙面板的两个小 App（aero panel）
 
 case "$NAME" in
     net | net.rx | net.tx | bluetooth)   # 网络项、蓝牙项：面板是单独的 App（aero panel），先收起 SketchyBar 的面板
@@ -56,7 +56,7 @@ case "$NAME" in
         for item in $POPUPS; do
             [ "$item" = "$ITEM" ] || args+=(--set "$item" popup.drawing=off)
         done
-        pkill -USR2 -f "^$PANELS_BIN"   # Wi-Fi、蓝牙面板开着就收起
+        pkill -USR2 -f "$PANELS"   # Wi-Fi、蓝牙面板开着就收起
         mkdir -p "$STATE" && echo "$ITEM" >"$STATE/bar-hover"
         pkill -USR1 -f "^$HELPER bar-stats"
         sketchybar "${args[@]}" --set "$ITEM" popup.drawing=on

@@ -5,7 +5,7 @@
 //   类型、地址、电量，和"忘记""连接 / 断开"
 // 栏上的蓝牙图标也由这里推：开着是蓝牙图标，关着是灰的、带斜线的（有设备连着也不加两边的点，太花）；
 // 设备连上 / 断开、开关时马上推，另外每 5 秒看一次。
-// 读蓝牙设备要"蓝牙"权限，App 第一次启动时系统问一次。
+// 单独的小 App：fantastic-i3-bluetooth（common.swift 的 runPanelApp）。读蓝牙设备要"蓝牙"权限，第一次启动时系统问一次。
 
 import AppKit
 import IOBluetooth
@@ -123,7 +123,7 @@ final class BluetoothPanel: BarPanel {
         if isOpen { reload() }
     }
 
-    /// 栏上的蓝牙图标：开着、关着（灰）。和上次一样就不推（SketchyBar 重新加载后 main.swift 让它强推一次）
+    /// 栏上的蓝牙图标：开着、关着（灰）。和上次一样就不推（SketchyBar 重新加载后 aero 发 SIGHUP，强推一次）
     func pushBar(force: Bool = false) {
         let on = bluetoothPower()
         let icon = on ? "\u{F00AF}" : "\u{F00B2}"
@@ -268,3 +268,15 @@ final class BluetoothPanel: BarPanel {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.changed() }
     }
 }
+
+@main
+enum BluetoothApp {
+    static func main() {
+        runPanelApp(anchor: "\(stateDir)/bluetooth-anchor", make: {
+            let panel = BluetoothPanel()
+            panel.start()
+            return panel
+        }, onHangup: { ($0 as? BluetoothPanel)?.pushBar(force: true) })
+    }
+}
+

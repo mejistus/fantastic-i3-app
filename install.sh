@@ -1,7 +1,7 @@
 #!/bin/bash
 # macOS 平铺窗口管理（yabai + skhd + SketchyBar）一键安装。可以重复运行：已经做好的步骤会跳过。
 # 跑法：
-#   新电脑上一行就够（会装 Homebrew，再把仓库克隆到 ~/Documents/fantastic-i3-macOS）：
+#   新电脑上一行就够（会装 Homebrew，再把仓库克隆到 ~/.local/share/fantastic-i3-macOS）：
 #     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/mejistus/fantastic-i3-macOS/main/install.sh)"
 #   已经克隆了：bash <仓库>/install.sh（fantastic-i3 里它是子模块 macos/，就是 bash <fantastic-i3>/macos/install.sh）
 #   只看快捷键表：bash <仓库>/install.sh --keys
@@ -9,10 +9,10 @@
 # 做的事：
 #   1. 检查 Apple Silicon；没有 Homebrew 就用官方脚本装（会问开机密码，顺带装 Xcode 命令行工具：
 #      swiftc 编译 aero-helper，otool 给 setup-sa 用，git 克隆仓库）
-#   2. 仓库要在 ~/Documents/fantastic-i3-macOS（skhdrc 里写的是这个路径）：用 curl 跑的就克隆到那里，
-#      克隆在别处（比如 fantastic-i3 的子模块 macos/）就在那里建一个链接
+#   2. 用 curl 跑的：把仓库克隆到 ~/.local/share/fantastic-i3-macOS（看不见的地方）。已经克隆了的放在哪里都行
 #   3. 逐个检查 yabai、skhd、SketchyBar、jq 和字体 Maple Mono NF、sketchybar-app-font，没装的用 brew 装
-#   4. 链接配置：~/.config/yabai/yabairc、~/.config/skhd/skhdrc、~/.config/sketchybar（原来的会备份）
+#   4. 把仓库里的 yabai、skhd、sketchybar 三个文件夹整个链接成 ~/.config/yabai、~/.config/skhd、~/.config/sketchybar
+#      （原来的会备份成 .bak-日期）。配置和脚本之间都经由 ~/.config 互相找，不管仓库在哪里，也不在别处建链接
 #   5. 关掉调度中心的"根据最近的使用情况自动重新排列空间"（否则桌面顺序会变，工作区编号就乱了）
 #   6. 编译 aero-helper（窗口切换列表、顶栏的数据和底板、锁屏等，helper/*.swift）
 #   7. 启动 yabai、skhd、SketchyBar 服务（SketchyBar 已经在跑就重新加载，用上链接好的配置），检查辅助功能权限。
@@ -24,9 +24,8 @@
 # 想要瞬间切换桌面（没有动画）：再运行 yabai/setup-sa（要先在恢复模式里部分关闭 SIP，见它开头的说明）。
 set -euo pipefail
 
-HOME_REPO="$HOME/Documents/fantastic-i3-macOS"
+CLONE_DIR="$HOME/.local/share/fantastic-i3-macOS"   # 用 curl 跑时克隆到这里
 REPO_URL="https://github.com/mejistus/fantastic-i3-macOS"
-AERO="$HOME_REPO/yabai/aero"
 todo=()
 
 ok() { echo "✓ $*"; }
@@ -74,7 +73,7 @@ EOF
   ⌥⇧⇥                     把当前工作区挪到下一个显示器（要脚本扩展）
 EOF
     echo "应用的菜单（文件、编辑……）在 SketchyBar 下面的系统菜单栏里：⌥⇧↩ 露出来。脚本扩展见 yabai/setup-sa（没有它切工作区有滑动动画）"
-    echo "再看这张表：bash $HOME_REPO/install.sh --keys"
+    echo "再看这张表：bash ${REPO:-<仓库>}/install.sh --keys"
 }
 
 if [ "${1:-}" = --keys ]; then keys; exit 0; fi
@@ -104,24 +103,18 @@ if [ -n "$self" ] && [ -x "$(dirname "$self")/yabai/aero" ]; then
     REPO=$(cd "$(dirname "$self")" && pwd -P)
 else
     # 用 curl 跑的：手里只有这个脚本，克隆仓库，再用仓库里的这个脚本接着装
-    if [ ! -x "$AERO" ]; then
-        if [ -e "$HOME_REPO" ] || [ -L "$HOME_REPO" ]; then
-            die "$HOME_REPO 已经存在，但不是这个仓库：移走它，再运行一次"
+    if [ ! -x "$CLONE_DIR/yabai/aero" ]; then
+        if [ -e "$CLONE_DIR" ] || [ -L "$CLONE_DIR" ]; then
+            die "$CLONE_DIR 已经存在，但不是这个仓库：移走它，再运行一次"
         fi
-        echo "→ 克隆 $REPO_URL 到 $HOME_REPO"
-        mkdir -p "$(dirname "$HOME_REPO")"
-        git clone "$REPO_URL" "$HOME_REPO"
+        echo "→ 克隆 $REPO_URL 到 $CLONE_DIR"
+        mkdir -p "$(dirname "$CLONE_DIR")"
+        git clone "$REPO_URL" "$CLONE_DIR"
     fi
-    exec /bin/bash "$HOME_REPO/install.sh" "$@"
+    exec /bin/bash "$CLONE_DIR/install.sh" "$@"
 fi
-if [ "$(cd "$HOME_REPO" 2>/dev/null && pwd -P)" != "$REPO" ]; then
-    if [ -e "$HOME_REPO" ] || [ -L "$HOME_REPO" ]; then
-        die "$HOME_REPO 已经存在，但不是这个仓库（$REPO）：移走它，或者把仓库放到那里"
-    fi
-    mkdir -p "$(dirname "$HOME_REPO")"
-    ln -s "$REPO" "$HOME_REPO"
-fi
-ok "仓库：$HOME_REPO$([ -L "$HOME_REPO" ] && echo " → $REPO")"
+AERO="$REPO/yabai/aero"
+ok "仓库：$REPO"
 
 # ---- 3. 软件 ----
 need() { # <formula|cask> <brew 里的名字>
@@ -139,27 +132,26 @@ need formula jq
 need cask font-maple-mono-nf
 need cask font-sketchybar-app-font   # 要和 sketchybar/icon_map.sh 同一版本
 
-# ---- 4. 配置文件 ----
-link() { # <仓库里的文件> <链接位置>
+# ---- 4. 配置文件夹 ----
+link() { # <仓库里的文件夹> <链接位置>
     local src=$1 dst=$2
     if [ "$(readlink "$dst" 2>/dev/null)" != "$src" ]; then
         mkdir -p "$(dirname "$dst")"
-        if [ -L "$dst" ] && [ "$(readlink -f "$dst")" = "$(readlink -f "$src")" ]; then
-            rm "$dst"   # 指向同一个文件，只是路径写法不同（比如换成了 ~/Documents/fantastic-i3-macOS）
+        if [ -L "$dst" ] && { [ ! -e "$dst" ] || [ "$(readlink -f "$dst")" = "$(readlink -f "$src")" ]; }; then
+            rm "$dst"   # 坏掉的链接，或者指向同一处、只是路径写法不同：直接换
         elif [ -e "$dst" ] || [ -L "$dst" ]; then
-            mv "$dst" "$dst.bak-$(date +%Y%m%d-%H%M%S)"
+            mv "$dst" "$dst.bak-$(date +%Y%m%d-%H%M%S)"   # 以前的文件夹（里面是单个文件的链接或你自己的配置）
             echo "  原来的 $dst 已备份"
         fi
         ln -s "$src" "$dst"
     fi
     ok "$dst → $src"
 }
-link "$HOME_REPO/yabai/yabairc" "$HOME/.config/yabai/yabairc"
-link "$HOME_REPO/skhd/skhdrc" "$HOME/.config/skhd/skhdrc"
-link "$HOME_REPO/sketchybar" "$HOME/.config/sketchybar"
-# skhdrc 末尾 .load 这个文件；之后由 aero keys 按 SA 是否加载切换成 sa / native，这里只在没有时先放一个
-[ -e "$HOME/.config/skhd/workspaces.skhdrc" ] ||
-    ln -sfn "$HOME_REPO/skhd/workspaces-native.skhdrc" "$HOME/.config/skhd/workspaces.skhdrc"
+link "$REPO/yabai" "$HOME/.config/yabai"
+link "$REPO/skhd" "$HOME/.config/skhd"
+link "$REPO/sketchybar" "$HOME/.config/sketchybar"
+# skhdrc 末尾 .load 这个文件（不进仓库，见 .gitignore）；之后由 aero keys 按 SA 是否加载切换成 sa / native，这里只在没有时先放一个
+[ -e "$REPO/skhd/workspaces.skhdrc" ] || ln -sfn workspaces-native.skhdrc "$REPO/skhd/workspaces.skhdrc"
 
 # ---- 5. 调度中心 ----
 if [ "$(defaults read com.apple.dock mru-spaces 2>/dev/null)" != 0 ]; then
@@ -174,7 +166,7 @@ fi
 # ---- 6. aero-helper ----
 "$AERO" helper >/dev/null 2>&1 || true    # 不带参数：需要时编译，然后只打印用法
 [ -x "$HOME/.cache/fantastic-i3/aero-helper" ] ||
-    die "aero-helper 编译失败：swiftc -O -o ~/.cache/fantastic-i3/aero-helper $HOME_REPO/yabai/helper/*.swift"
+    die "aero-helper 编译失败：swiftc -O -o ~/.cache/fantastic-i3/aero-helper $REPO/yabai/helper/*.swift"
 ok "aero-helper"
 
 # ---- 7. 服务和权限 ----
@@ -218,7 +210,7 @@ if [ "$yabai_ok" = 1 ]; then
     if [ "$have" -ge 17 ]; then
         ok "桌面：$have 个"
     else
-        todo+=("调度中心里把桌面加到 17 个（现在 $have 个）；或者运行 $HOME_REPO/yabai/setup-sa，加载 SA 后会自动补齐")
+        todo+=("调度中心里把桌面加到 17 个（现在 $have 个）；或者运行 $REPO/yabai/setup-sa，加载 SA 后会自动补齐")
     fi
 fi
 

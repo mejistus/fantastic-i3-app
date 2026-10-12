@@ -17,9 +17,9 @@ Apple Silicon only. One line:
 From a clone, run `bash install.sh` in it instead. The script is safe to rerun. It:
 
 1. Installs Homebrew if it's missing. It asks for your login password and also installs the Xcode command-line tools.
-2. Clones the repo to `~/Documents/fantastic-i3-macOS`, where the configs expect it. A clone somewhere else, such as the `macos` submodule of fantastic-i3, gets a link at that path.
+2. When run with curl, clones the repo to `~/.local/share/fantastic-i3-macOS`, out of sight. An existing clone can be anywhere, such as the `macos` submodule of fantastic-i3.
 3. Checks yabai, skhd, SketchyBar, jq and the fonts, and installs the missing ones.
-4. Links the configs into `~/.config`. Existing files are backed up.
+4. Links the repo's `yabai`, `skhd` and `sketchybar` folders as `~/.config/yabai`, `~/.config/skhd` and `~/.config/sketchybar`; existing ones are backed up as `.bak-<date>`. Configs and scripts find each other through `~/.config`, so nothing else is linked anywhere.
 5. Turns off "Automatically rearrange Spaces based on most recent use".
 6. Builds aero-helper (window switcher, bar stats) and starts the services. The macOS menu bar is set to always show, and SketchyBar is drawn over it.
 
@@ -30,7 +30,7 @@ Then it lists what's left to do by hand:
 
 Last, it prints a key cheat sheet. Take a screenshot of it; `install.sh --keys` prints it again.
 
-The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantastic-i3" may use your location and Bluetooth. Allow both: macOS only shows Wi-Fi names to apps with location access, and the Bluetooth panel needs Bluetooth access to list your devices.
+The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantastic-i3-wifi" may use your location and whether "fantastic-i3-bluetooth" may use Bluetooth. Allow both: macOS only shows Wi-Fi names to apps with location access, and the Bluetooth panel needs Bluetooth access to list your devices.
 
 ## Keys
 
@@ -145,7 +145,7 @@ Prefer the macOS menu bar? `echo native > ~/.config/fantastic-i3/bar` keeps Sket
 <details>
 <summary>How it's built</summary>
 
-Config is in [`sketchybar/`](sketchybar). The network and Bluetooth panels are native panels from a separate small app (`BarPanels.app`, built and started by `aero panel`), because SketchyBar panels can't hold text fields; the same app keeps the Bluetooth icon up to date. GPU, CPU, memory, disk, network, input method and the other panels' contents come from `aero-helper bar-stats` ([`yabai/helper/bar.swift`](yabai/helper/bar.swift)); the top-5 process lists are computed only while a panel is open.
+Config is in [`sketchybar/`](sketchybar). The network and Bluetooth panels are native panels from two small apps, `fantastic-i3-wifi` and `fantastic-i3-bluetooth` (built and started by `aero panel`, sources in [`yabai/helper/panels/`](yabai/helper/panels)), because SketchyBar panels can't hold text fields; the Bluetooth one also keeps the Bluetooth icon up to date. GPU, CPU, memory, disk, network, input method and the other panels' contents come from `aero-helper bar-stats` ([`yabai/helper/bar.swift`](yabai/helper/bar.swift)); the top-5 process lists are computed only while a panel is open.
 
 The background is `aero-helper bar-backdrop` ([`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)). Like the real menu bar, it shows the top of the wallpaper heavily blurred and slightly darkened. It sits just above the real menu bar and its status icons (level 26), hiding them under the bar; dropdown menus and Control Center still open above it. It sits on the regular desktops only, so it slides in and out with them and never covers a native-fullscreen app (videos, slides). Every 0.2 s it checks whether a window covers a whole screen without native fullscreen, such as a PowerPoint slideshow; if so, the bar (`topmost=off`) and the backdrop drop below windows until it's gone.
 
@@ -180,6 +180,7 @@ Once it's loaded, missing desktops are created automatically. Run `setup-sa` aga
 | [`yabai/setup-sa`](yabai/setup-sa) | Scripting addition setup |
 | [`skhd/`](skhd) | Keys |
 | [`sketchybar/`](sketchybar) | Top bar |
-| [`window_switcher`](window_switcher) | ⌥⇥, ⌘⇥ and ⌘Space |
+| [`yabai/window_switcher`](yabai/window_switcher) | ⌥⇥, ⌘⇥ and ⌘Space |
+| [`yabai/new_window_here`](yabai/new_window_here) | ⌥D and ⌥⇧D |
 
 The other folders here (`kitty/`, `nvim/`, `aerospace/`) are standalone configs; the installer doesn't touch them.

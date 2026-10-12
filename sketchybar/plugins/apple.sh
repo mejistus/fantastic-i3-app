@@ -5,7 +5,7 @@
 # 锁屏用 aero-helper lock（和 ⌃⌘Q 同一个系统函数）；睡眠是 pmset sleepnow，和原生一样立刻睡。
 STATE="/tmp/yabai-aero-$USER"
 HELPER="$HOME/.cache/fantastic-i3/aero-helper"
-AERO="$HOME/Documents/fantastic-i3-macOS/yabai/aero"
+AERO="$HOME/.config/yabai/aero"
 POPUPS="gpu cpu mem disk net input volume battery clock"
 [ "$SENDER" = mouse.clicked ] || exit 0
 
@@ -15,7 +15,7 @@ pgrep -qf "^$HELPER apple-menu" && exit 0
 args=()
 for item in $POPUPS; do args+=(--set "$item" popup.drawing=off); done
 rm -f "$STATE/bar-hover"
-pkill -USR2 -f "^$HOME/.cache/fantastic-i3/BarPanels.app/Contents/MacOS/bar-panels"   # Wi-Fi、蓝牙面板开着就收起
+pkill -USR2 -f "^$HOME/.cache/fantastic-i3/fantastic-i3-(wifi|bluetooth)\.app/"   # Wi-Fi、蓝牙面板开着就收起
 sketchybar "${args[@]}" --set apple background.drawing=on
 choice=$("$HELPER" apple-menu "$(sketchybar --query apple | jq -c '[.bounding_rects[] | select(.origin[0] > -9000)]')")
 sketchybar --set apple background.drawing=off

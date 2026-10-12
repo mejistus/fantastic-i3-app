@@ -3,7 +3,8 @@
 //   现在的连接：下载、上传、IP 地址、路由器、信号、连接速率、信道（每 2 秒刷新）
 //   附近的 Wi-Fi：搜索框过滤，每 10 秒重新扫一次。点一个在它下面展开：安全性、账号（企业级）、密码，
 //   和"忘记"（存过的才有）、"连接"（连着的是"断开"）。存过的网络不填密码直接连，用钥匙串里存的。
-// Wi-Fi 名称（附近的、现在连着的）要定位权限，App 第一次启动时系统问一次（main.swift）。
+// 单独的小 App：fantastic-i3-wifi（common.swift 的 runPanelApp）。Wi-Fi 名称（附近的、现在连着的）要定位权限，
+// 第一次启动时系统问一次。
 
 import AppKit
 import CoreLocation
@@ -69,7 +70,7 @@ func speedText(_ bytesPerSecond: Double) -> String {
 final class WiFiPanel: BarPanel, CLLocationManagerDelegate, NSSearchFieldDelegate {
     let wifi = CWWiFiClient.shared().interface()
     let location = CLLocationManager()
-    let store = SCDynamicStoreCreate(nil, "bar-panels" as CFString, nil, nil)
+    let store = SCDynamicStoreCreate(nil, "fantastic-i3-wifi" as CFString, nil, nil)
     let titleLabel = label("网络", weight: .semibold)
     let rows = ["down": InfoRow("下载"), "up": InfoRow("上传"), "ip": InfoRow("IP 地址"), "router": InfoRow("路由器"),
                 "signal": InfoRow("信号"), "rate": InfoRow("连接速率"), "channel": InfoRow("信道")]
@@ -432,3 +433,15 @@ final class WiFiPanel: BarPanel, CLLocationManagerDelegate, NSSearchFieldDelegat
         }
     }
 }
+
+@main
+enum WiFiApp {
+    static func main() {
+        runPanelApp(anchor: "\(stateDir)/wifi-anchor") {
+            let panel = WiFiPanel()
+            panel.start()
+            return panel
+        }
+    }
+}
+

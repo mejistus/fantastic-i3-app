@@ -1,10 +1,12 @@
-// 顶栏的原生面板（Wi-Fi、蓝牙）共用的：颜色、尺寸、几种行、面板本身。
+// 顶栏的原生面板共用的：颜色、尺寸、几种行、面板本身，和每个面板 App 的主循环（runPanelApp）。
+// 每个面板是一个单独的小 App（../../aero panel 编译、启动）：fantastic-i3-wifi（wifi.swift）、fantastic-i3-bluetooth
+// （bluetooth.swift），各自编译时带上这个文件。不放在 SketchyBar 里：要搜索框、密码框；独立成 App：macOS 只把 Wi-Fi 名称
+// 给有定位权限的程序、读蓝牙设备要蓝牙权限，这些权限都只能给 App（第一次启动时系统问一次，之后记住）。
 // 样式和 SketchyBar 的面板一样：宽 300、系统菜单材质、左右留 16、上下留 8，能点的行鼠标移上去一块圆角亮底。
 
 import AppKit
 
 let stateDir = "/tmp/yabai-aero-\(NSUserName())"
-let anchorFile = "\(stateDir)/panel-anchor"   // aero panel toggle 写："<面板> <左> <上>"（屏幕坐标，左上角为原点）
 let sketchybarPath = "/opt/homebrew/bin/sketchybar"
 let openIcon = NSString("~/.config/sketchybar/icons/open.png").expandingTildeInPath
 let openHoverIcon = NSString("~/.config/sketchybar/icons/open-hover.png").expandingTildeInPath
@@ -425,3 +427,35 @@ class BarPanel: NSObject {
     func didClose() {}
     func prepareLayout() {}
 }
+
+/// 面板 App 的主循环。常驻后台（不在程序坞里）：
+///   SIGUSR1：读 anchor 文件（aero panel toggle 写的"<左> <上>"，屏幕坐标，左上角为原点），在那里打开面板，开着就收起
+///   SIGUSR2：收起（打开了别的面板、 菜单）
+///   SIGHUP： SketchyBar 重新加载过（onHangup，蓝牙面板用来把栏上的图标再推一遍）
+/// 点面板外面、按 Esc、切换桌面也收起。
+func runPanelApp(anchor: String, make: () -> BarPanel, onHangup: ((BarPanel) -> Void)? = nil) -> Never {
+    // 信号先忽略掉（默认动作是退出），下面再接上：aero 可能在这个进程刚启动、还没接好时就发信号
+    for number in [SIGUSR1, SIGUSR2, SIGHUP] { signal(number, SIG_IGN) }
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let panel = make()
+    var sources: [DispatchSourceSignal] = []
+    func on(_ number: Int32, _ handler: @escaping () -> Void) {
+        let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
+        source.setEventHandler(handler: handler)
+        source.resume()
+        sources.append(source)
+    }
+    on(SIGUSR1) {
+        let parts = (try? String(contentsOfFile: anchor, encoding: .utf8))?.split(whereSeparator: \.isWhitespace) ?? []
+        guard parts.count == 2, let left = Double(parts[0]), let top = Double(parts[1]) else { return }
+        panel.toggle(left: left, top: top)
+    }
+    on(SIGUSR2) { panel.close() }
+    on(SIGHUP) { onHangup?(panel) }
+    NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+                                                      object: nil, queue: .main) { _ in panel.close() }
+    withExtendedLifetime(sources) { app.run() }
+    exit(0)
+}
+
