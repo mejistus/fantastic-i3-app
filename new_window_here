@@ -5,9 +5,11 @@
 
 # 带文件夹：总是新开（新窗口开在当前桌面上；"切换到有它窗口的空间"是关着的，激活 Finder 不会跳走）
 if [ -n "$1" ] && [ -d "$1" ]; then
-    osascript -e 'on run {folder}' \
+    # 参数别叫 folder：在 tell Finder 里它是访达的"文件夹"类型（'cfol'），会报"无法将 file \":cfol\" 转成 alias"
+    osascript -e 'on run {thePath}' \
+              -e 'set theFolder to (POSIX file thePath) as alias' \
               -e 'tell application "Finder"' \
-              -e 'make new Finder window to (POSIX file folder as alias)' \
+              -e 'make new Finder window to theFolder' \
               -e 'activate' \
               -e 'end tell' \
               -e 'end run' "$1" >/dev/null
