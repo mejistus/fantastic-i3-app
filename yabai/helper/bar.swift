@@ -388,7 +388,12 @@ final class BarStats {
     /// 重新加载 SketchyBar 时这个进程会被停掉、曲线也会清零：停掉前存进 historyFile，新进程启动时读回来补上
     var history: [String: [Double]] = ["cpu": [], "gpu": []]
     let historyLength = 272
-    let historyFile = "/tmp/yabai-aero-\(NSUserName())/bar-history.json"
+    // 存的是平滑过的值（改成平滑之前存的是原始值，换了文件名，旧的不读）
+    let historyFile = "/tmp/yabai-aero-\(NSUserName())/bar-history-smooth.json"
+    /// 曲线上画的 CPU / GPU：指数平滑（每次往新值走 35%，约等于最近 6 秒的加权平均）。2 秒一采的原始值上下跳 10–20%，
+    /// 面板里一个点一个像素，画出来是一排三角波。栏上的百分比数字还是这一刻的原始值
+    let smoothing = 0.35
+    var smoothed: [String: Double] = [:]
     var termSource: DispatchSourceSignal?
     let memoryTotal = Double(ProcessInfo.processInfo.physicalMemory)
     let store = SCDynamicStoreCreate(nil, "aero-helper" as CFString, nil, nil)
@@ -483,14 +488,20 @@ final class BarStats {
         for item in ["cpu", "gpu"] {
             let values = Array((saved[item] ?? []).suffix(historyLength))
             history[item] = values
+            smoothed[item] = values.last
             if !values.isEmpty { args += ["--push", item] + values.map { String(format: "%.3f", $0) } }
         }
         send(args)
     }
 
-    func record(_ item: String, _ value: Double) {
+    /// 平滑后记进历史，返回平滑后的值（推给曲线的就是它）
+    @discardableResult
+    func record(_ item: String, _ raw: Double) -> Double {
+        let value = smoothed[item].map { $0 + smoothing * (raw - $0) } ?? raw
+        smoothed[item] = value
         history[item, default: []].append(value)
         if history[item]!.count > historyLength { history[item]!.removeFirst(history[item]!.count - historyLength) }
+        return value
     }
 
     /// 弹出面板里的曲线：SketchyBar 画弹出面板里的曲线时最新的点在最左边，和栏上（最新在右）反着。
@@ -541,16 +552,16 @@ final class BarStats {
         }
         lastCPU = ticksNow
         let cpuPercent = 100 - cpu.idle
-        record("cpu", cpuPercent / 100)
-        args += ["--push", "cpu", String(format: "%.3f", cpuPercent / 100), "--set", "cpu", percentLabel(cpuPercent)]
+        let cpuLine = record("cpu", cpuPercent / 100)
+        args += ["--push", "cpu", String(format: "%.3f", cpuLine), "--set", "cpu", percentLabel(cpuPercent)]
 
         let memPercent = memoryInfo().used / memoryTotal * 100
         args += ["--set", "mem", percentLabel(memPercent)]
 
         if let gpu = gpuInfo() {
-            record("gpu", Double(gpu.utilization) / 100)
+            let gpuLine = record("gpu", Double(gpu.utilization) / 100)
             args += ["--set", "gpu", percentLabel(Double(gpu.utilization)),
-                     "--push", "gpu", String(format: "%.3f", Double(gpu.utilization) / 100)]
+                     "--push", "gpu", String(format: "%.3f", gpuLine)]
         }
 
         args += network()
