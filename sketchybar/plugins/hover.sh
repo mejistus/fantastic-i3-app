@@ -23,6 +23,7 @@ esac
 close() {
     sketchybar --set "$ITEM" popup.drawing=off
     rm -f "$STATE/bar-hover"
+    pkill -USR2 -f "^$HELPER bar-backdrop"   # 面板后面的材质跟着收（见 backdrop.swift 的 syncPanels）
 }
 
 case "$NAME" in
@@ -42,6 +43,7 @@ case "$NAME" in
         mkdir -p "$STATE" && echo "$ITEM" >"$STATE/bar-hover"
         pkill -USR1 -f "^$HELPER bar-stats"
         sketchybar "${args[@]}" --set "$ITEM" popup.drawing=on
+        pkill -USR2 -f "^$HELPER bar-backdrop"   # 马上在面板后面垫上材质
         ;;
     volume.muted)
         osascript -e 'set volume output muted (not (output muted of (get volume settings)))'

@@ -145,7 +145,7 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 
 背景是 `aero-helper bar-backdrop`（[`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)）。和真正的菜单栏一样，它显示壁纸顶部、重度模糊再稍微压暗。它在真正的菜单栏和状态图标之上（层级 26），把它们挡在顶栏下面；下拉菜单和控制中心照样开在它上面。它只在普通桌面上，所以跟着桌面一起滑动，不会盖住原生全屏的应用（视频、幻灯片）。它每 0.2 秒看一次有没有不走原生全屏、却盖满整块屏的窗口（比如 PowerPoint 放映）；有的话顶栏（`topmost=off`）和底板一起降到窗口下面，等它没了再回来。
 
-SketchyBar 自带的 `blur_radius` 在 macOS 15 上不起作用。macOS 15 还对没有定位权限的应用隐藏 Wi-Fi 名称，所以网络项显示的是连接类型。
+详情面板也一样：面板自己的底色是透明的，底板进程在每个打开的面板后面紧贴着垫一个系统菜单材质的窗口（磨砂、圆角、一圈细亮边、系统阴影），看起来和真正的菜单栏点开的面板一样。面板里的文字用系统字体。SketchyBar 自带的 `blur_radius` 在 macOS 15 上不起作用。macOS 15 还对没有定位权限的应用隐藏 Wi-Fi 名称，所以网络项显示的是连接类型。
 
 </details>
 

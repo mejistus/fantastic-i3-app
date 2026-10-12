@@ -145,7 +145,7 @@ Config is in [`sketchybar/`](sketchybar). GPU, CPU, memory, disk, network, input
 
 The background is `aero-helper bar-backdrop` ([`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)). Like the real menu bar, it shows the top of the wallpaper heavily blurred and slightly darkened. It sits just above the real menu bar and its status icons (level 26), hiding them under the bar; dropdown menus and Control Center still open above it. It sits on the regular desktops only, so it slides in and out with them and never covers a native-fullscreen app (videos, slides). Every 0.2 s it checks whether a window covers a whole screen without native fullscreen, such as a PowerPoint slideshow; if so, the bar (`topmost=off`) and the backdrop drop below windows until it's gone.
 
-SketchyBar's own `blur_radius` has no effect on macOS 15. macOS 15 also hides the Wi-Fi name from apps without Location access, so the network item shows the connection type instead.
+The detail panels get the same treatment: their own fill is transparent, and the backdrop process puts a window with the system menu material right behind each open panel (frosted, rounded, with a hairline border and the system shadow), so they look like the panels the real menu bar opens. Panel text uses the system font. SketchyBar's own `blur_radius` has no effect on macOS 15. macOS 15 also hides the Wi-Fi name from apps without Location access, so the network item shows the connection type instead.
 
 </details>
 

@@ -799,8 +799,8 @@ final class BarStats {
             for i in 0..<5 {
                 if i < sources.count {
                     args += ["--set", "input.src.\(i)", "drawing=on", "icon=\(sources[i].current ? "\u{F043E}" : "\u{F043D}")",
-                             "icon.color=\(sources[i].current ? yellow : "0xff5c6370")", "label=\(sources[i].name)",
-                             "label.color=\(sources[i].current ? foreground : "0xff9c9c9c")"]
+                             "icon.color=\(sources[i].current ? yellow : "0x66ffffff")", "label=\(sources[i].name)",
+                             "label.color=\(sources[i].current ? foreground : "0x99ffffff")"]
                 } else {
                     hide("src.\(i)", true)
                 }
@@ -815,7 +815,7 @@ final class BarStats {
                 row("level", "\(percent)%")
             } else {
                 hide("slider", true)
-                row("level", "这个设备不能调音量", color: "0xff9c9c9c")
+                row("level", "这个设备不能调音量", color: "0x99ffffff")
             }
             row("muted", device.muted == true ? "是" : "否", color: device.muted == true ? yellow : foreground)
 

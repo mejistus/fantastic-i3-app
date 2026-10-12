@@ -117,10 +117,11 @@ sketchybar --default padding_left=0 padding_right=0
 popup() { # <项> [<事件> …]：面板样式 + 鼠标事件（默认只有点击：点一下打开 / 收起，由 plugins/hover.sh 处理）
     local item=$1
     shift
-    sketchybar --set "$item" popup.align=right popup.y_offset=6 popup.height=26 popup.blur_radius=30 \
-        popup.background.color=0xf8282c34 popup.background.corner_radius=12 \
-        popup.background.border_width=1 popup.background.border_color=$ITEM_BG \
-        popup.background.shadow.drawing=on popup.background.shadow.color=0x66000000 popup.background.shadow.distance=6 \
+    # 底色全透明：后面由 aero-helper bar-backdrop 垫一块系统菜单的材质（磨砂、细亮边、系统阴影，和原生的面板一样），
+    # 圆角半径要和它（backdrop.swift 的 panelRadius）一样
+    sketchybar --set "$item" popup.align=right popup.y_offset=6 popup.height=26 popup.blur_radius=0 \
+        popup.background.color=0x00000000 popup.background.corner_radius=12 popup.background.border_width=0 \
+        popup.background.shadow.drawing=off \
         --subscribe "$item" ${@:-mouse.clicked}
 }
 
@@ -128,7 +129,7 @@ popup_title() { # <项> <图标> <颜色> [<标题>]：标题行，下面一条�
                 # 标题行最右边一个 ↗（背景图片 icons/open.png，鼠标移上去换成亮的 open-hover.png）：点标题行打开对应的应用或设置页
     sketchybar --add item "$1.title" "popup.$1" \
         --set "$1.title" width=$POPUP_WIDTH icon="$2" icon.color="$3" icon.font="$FONT:Bold:16.0" \
-            icon.padding_left=14 icon.padding_right=8 label="${4:-}" label.font="$TEXT_FONT:$BOLD:13.0" label.color=$FG \
+            icon.padding_left=14 icon.padding_right=8 label="${4:-}" label.font="$POPUP_FONT:Semibold:13.0" label.color=$FG \
             background.drawing=on background.color=0x00000000 background.height=24 \
             background.image="$CONFIG_DIR/icons/open.png" background.image.scale=0.5 \
             background.image.padding_left=$((POPUP_WIDTH - 23)) \
@@ -146,13 +147,13 @@ popup_rows() { # <项> <行>=<名称> …：左边灰色的名称，右边的值
     for row in "$@"; do
         sketchybar --add item "$item.${row%%=*}" "popup.$item" \
             --set "$item.${row%%=*}" width=$POPUP_WIDTH icon="${row#*=}" icon.width=110 icon.padding_left=14 \
-                icon.font="$TEXT_FONT:$MEDIUM:12.0" icon.color=$FG_ALT label=— label.font="$TEXT_FONT:$SEMIBOLD:12.0" label.color=$FG
+                icon.font="$POPUP_FONT:Regular:13.0" icon.color=$POPUP_FG2 label=— label.font="$POPUP_FONT:Medium:13.0" label.color=$FG
     done
 }
 
 popup_section() { # <项> <行> <文字>：小标题（灰色、小字）
     sketchybar --add item "$1.$2" "popup.$1" \
-        --set "$1.$2" width=$POPUP_WIDTH icon.drawing=off label="$3" label.font="$TEXT_FONT:$BOLD:11.0" \
+        --set "$1.$2" width=$POPUP_WIDTH icon.drawing=off label="$3" label.font="$POPUP_FONT:Semibold:11.0" \
             label.color=$FG_DIM label.padding_left=14
 }
 
@@ -162,7 +163,7 @@ popup_top() { # <项>：进程排行五行（左边进程名，右边用量）
     for i in 0 1 2 3 4; do
         sketchybar --add item "$1.top.$i" "popup.$1" \
             --set "$1.top.$i" width=$POPUP_WIDTH icon=— icon.width=190 icon.padding_left=14 \
-                icon.font="$TEXT_FONT:$MEDIUM:12.0" icon.color=$FG label.font="$TEXT_FONT:$SEMIBOLD:12.0" label.color=$FG_ALT
+                icon.font="$POPUP_FONT:Regular:13.0" icon.color=$FG label.font="$POPUP_FONT:Medium:13.0" label.color=$POPUP_FG2
     done
 }
 
@@ -181,7 +182,7 @@ popup_graph() { # <项> <行> <颜色> <填充色>：最近约 9 分钟的曲线
 
 popup_hint() { # <项> <文字>：一行灰色的操作提示
     sketchybar --add item "$1.hint" "popup.$1" \
-        --set "$1.hint" width=$POPUP_WIDTH icon.drawing=off label="$2" label.font="$TEXT_FONT:$REGULAR:11.0" \
+        --set "$1.hint" width=$POPUP_WIDTH icon.drawing=off label="$2" label.font="$POPUP_FONT:Regular:11.0" \
             label.color=$FG_DIM label.padding_left=14
 }
 
@@ -226,7 +227,7 @@ popup_title input 󰌌 $BAR_YELLOW 输入法
 for i in 0 1 2 3 4; do
     sketchybar --add item input.src.$i popup.input \
         --set input.src.$i width=$POPUP_WIDTH drawing=off icon.padding_left=14 icon.padding_right=8 \
-            icon.font="$FONT:Bold:14.0" label.font="$TEXT_FONT:$SEMIBOLD:12.0"
+            icon.font="$FONT:Bold:14.0" label.font="$POPUP_FONT:Medium:13.0"
 done
 
 # ---- 网速：一项只能有图标、文字两种颜色，箭头要单独上色，所以拆成三块：

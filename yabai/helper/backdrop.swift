@@ -10,6 +10,7 @@
 // 整条栏的窗口紧后面：在栏后、状态图标前，挡住原生菜单栏的内容（见 orderBelowBar）。弹出的菜单、控制中心（101）在它们之上。PowerPoint 放映这类盖满整块屏的窗口出现时两者降到它下面，见 checkCovered。
 // 不接收鼠标。
 // 每条只放在自己那块屏的普通桌面上，不放在原生全屏的桌面上（SketchyBar 在那上面也不画栏），见 placeOnDesktops。
+// 点开的面板（SketchyBar 的 popup）后面也垫一块：系统菜单的材质，和原生菜单栏里点开的面板一样，见 syncPanels。
 // 每 3 秒问一次 SketchyBar 栏的高度和是否隐藏，顺便看壁纸换没换（切换桌面时也看，每个桌面可以有不同的壁纸）。
 // 问不到时看 SketchyBar 的进程还在不在，不在了才退出：刚启动时它往往还在执行 sketchybarrc，睡眠唤醒后也要重建栏，
 // 这些时候都问不到（之前连着问不到 3 次就退出，唤醒后底板就没了）。
@@ -46,6 +47,10 @@ final class BarBackdrop {
     var lowered = false   // 有窗口盖满了某块屏，栏和底板降到了普通窗口下面（见 checkCovered）
     var level: NSWindow.Level { NSWindow.Level(rawValue: lowered ? -21 : 25) }   // 降下去时在栏（topmost=off，-20）下面
     var signalSource: DispatchSourceSignal?
+    var panelSignal: DispatchSourceSignal?
+    var glass: [Int: NSWindow] = [:]   // SketchyBar 面板的背景窗口号 → 垫在它后面的材质窗口
+    var panelTimer: Timer?
+    let panelRadius: CGFloat = 12      // 和 sketchybarrc 里 popup.background.corner_radius 一样
 
     func run() {
         let app = NSApplication.shared
@@ -59,7 +64,20 @@ final class BarBackdrop {
             self?.checkWallpaper()
         }
         Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.sync() }
-        Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in self?.checkCovered() }.tolerance = 0.05
+        Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            self?.checkCovered()
+            self?.syncPanels()
+        }.tolerance = 0.05
+        // plugins/hover.sh 打开 / 收起面板后发 SIGUSR2：马上垫上材质，不等 0.2 秒一次的检查（面板出现可能晚几毫秒，再补看几次）
+        signal(SIGUSR2, SIG_IGN)
+        let panels = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
+        panels.setEventHandler { [weak self] in
+            for delay in [0, 0.02, 0.06, 0.15] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { self?.syncPanels() }
+            }
+        }
+        panels.resume()
+        panelSignal = panels
         // aero toggle-bar（⌥⇧↩）藏起 / 放出栏后发 SIGUSR1：马上跟着藏 / 出来，不等 3 秒一次的检查
         signal(SIGUSR1, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
@@ -211,6 +229,88 @@ final class BarBackdrop {
             if done.count == displays.count { break }
         }
         return false
+    }
+
+    /// SketchyBar 的面板底色是全透明的（sketchybarrc 的 popup()），这里在每个打开的面板后面垫一块系统菜单的材质（.menu）：
+    /// 磨砂、圆角、一圈细亮边和系统阴影，和原生菜单栏里点开的面板一样。面板是层级 101 的一组窗口（每行一个），
+    /// 不被别的面板窗口包住的那个是背景，材质窗口和它一样大、排在它紧后面。
+    /// 面板开着时每 1/30 秒跟一次（内容变了会变高、被 bar-stats 收起），关着时靠 0.2 秒的检查和 SIGUSR2
+    func syncPanels() {
+        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        var rects: [(number: Int, rect: CGRect)] = []
+        for entry in info where entry[kCGWindowOwnerName as String] as? String == "sketchybar"
+                              && entry[kCGWindowLayer as String] as? Int == 101 {
+            guard let number = entry[kCGWindowNumber as String] as? Int,
+                  let dict = entry[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: dict as CFDictionary) else { continue }
+            rects.append((number, rect))
+        }
+        let backgrounds = rects.filter { panel in
+            !rects.contains { other in other.number != panel.number && other.rect != panel.rect && other.rect.contains(panel.rect) }
+                && rects.contains { other in other.number != panel.number && panel.rect.contains(other.rect) }
+        }
+        let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+        var keep = Set<Int>()
+        for (number, rect) in backgrounds {
+            keep.insert(number)
+            let frame = NSRect(x: rect.minX, y: mainHeight - rect.maxY, width: rect.width, height: rect.height)
+            let window = glass[number] ?? makeGlass()
+            if glass[number] == nil { glass[number] = window }
+            if window.frame != frame {
+                window.setFrame(frame, display: true)
+                window.invalidateShadow()
+            }
+            window.order(.below, relativeTo: number)
+        }
+        for (number, window) in glass where !keep.contains(number) {
+            window.orderOut(nil)
+            glass[number] = nil
+        }
+        if glass.isEmpty {
+            panelTimer?.invalidate()
+            panelTimer = nil
+        } else if panelTimer == nil {
+            panelTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.syncPanels() }
+        }
+    }
+
+    func makeGlass() -> NSWindow {
+        let window = NSWindow(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+        window.level = NSWindow.Level(rawValue: 101)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
+        window.ignoresMouseEvents = true
+        window.isReleasedWhenClosed = false
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+        window.appearance = NSAppearance(named: .darkAqua)
+        let effect = NSVisualEffectView()
+        effect.material = .menu
+        effect.blendingMode = .behindWindow
+        effect.state = .active
+        effect.maskImage = roundedMask(panelRadius)   // 圆角用遮罩：阴影也跟着圆角走
+        let edge = NSView()   // 一圈细亮边（深色模式下原生菜单的边就是这样）
+        edge.wantsLayer = true
+        edge.layer?.cornerRadius = panelRadius
+        edge.layer?.borderWidth = 1 / (NSScreen.main?.backingScaleFactor ?? 2)
+        edge.layer?.borderColor = NSColor(white: 1, alpha: 0.18).cgColor
+        edge.autoresizingMask = [.width, .height]
+        effect.addSubview(edge)
+        window.contentView = effect
+        edge.frame = effect.bounds
+        return window
+    }
+
+    func roundedMask(_ radius: CGFloat) -> NSImage {
+        let size = NSSize(width: radius * 2 + 1, height: radius * 2 + 1)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
     }
 
     /// 每条底板放到自己那块屏的所有普通桌面上，从别的桌面（原生全屏的）上拿掉。
