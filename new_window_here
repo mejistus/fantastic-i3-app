@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # ⌥D：把一个 Finder 窗口拿到当前工作区并聚焦；一个 Finder 窗口都没有就新开一个。
+# ⌥⇧D：new_window_here <文件夹>：在当前工作区新开一个 Finder 窗口，打开这个文件夹（skhdrc 里是 ~/Documents）。
 # yabai 和 AeroSpace 都支持（看哪个在运行）。
+
+# 带文件夹：总是新开（新窗口开在当前桌面上；"切换到有它窗口的空间"是关着的，激活 Finder 不会跳走）
+if [ -n "$1" ] && [ -d "$1" ]; then
+    osascript -e 'on run {folder}' \
+              -e 'tell application "Finder"' \
+              -e 'make new Finder window to (POSIX file folder as alias)' \
+              -e 'activate' \
+              -e 'end tell' \
+              -e 'end run' "$1" >/dev/null
+    exit 0
+fi
 
 if pgrep -xq yabai; then
     YABAI=/opt/homebrew/bin/yabai

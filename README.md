@@ -63,6 +63,7 @@ Last, it prints a key cheat sheet. Take a screenshot of it; `install.sh --keys` 
 | <kbd>⌘⇥</kbd> | Replaces the macOS app switcher. Tap: previous app. Hold ⌘: the app list |
 | <kbd>⌘Space</kbd> | The app list straight away, instead of Spotlight. Press again to close |
 | <kbd>⌥D</kbd> | Bring a Finder window to this workspace, or open one |
+| <kbd>⌥⇧D</kbd> | Open a new Finder window on Documents here |
 | <kbd>⌥G</kbd> | Default browser on workspace 1: focus its window there, or open one |
 
 In both lists, type to search. Keys go straight into the search box, past your input method, which stays as it was. Chinese names match by pinyin, in full or by initials (天氣: `tianqi` or `tq`). ↑ ↓ or the list's own key (⌥⇥ / ⌘⇥, add ⇧ to go up) select, Return or a click switches, Esc closes, ⌘+ / ⌘- change the font size.

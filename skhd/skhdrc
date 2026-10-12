@@ -78,8 +78,9 @@ cmd - space : $HOME/Documents/fantastic-i3-macOS/window_switcher --apps --list
 # ⌥⇧↩：临时关掉顶上的 SketchyBar 栏，换回常显的系统菜单栏；再按一次换回来
 alt + shift - return : $HOME/Documents/fantastic-i3-macOS/yabai/aero toggle-bar
 
-# 当前工作区开 Finder
-alt - d   : $HOME/Documents/fantastic-i3-macOS/new_window_here
+# ⌥D：当前工作区开 Finder；⌥⇧D：当前工作区新开一个 Finder 窗口，打开文稿
+alt - d         : $HOME/Documents/fantastic-i3-macOS/new_window_here
+alt + shift - d : $HOME/Documents/fantastic-i3-macOS/new_window_here "$HOME/Documents"
 
 # ⌥G = 工作区 1 的默认浏览器：那里有它的窗口就切过去，没有就切到工作区 1 新开一个
 alt - g : $HOME/Documents/fantastic-i3-macOS/yabai/focus_browser
