@@ -1,5 +1,5 @@
 // 截图识别（../capture 调，⌥O / ⌥I）：
-//   aero-helper ocr <图片>       识别里面的文字（系统自带的 Vision，中英文，不联网），一行一行输出
+//   aero-helper ocr <图片>       识别里面的文字（系统自带的 Vision，不联网）：中英文、简繁，夹着日文、韩文也行，一行一行输出
 //   aero-helper formula <图片>   识别里面的公式，输出 LaTeX 源码：发给 SiliconFlow 的视觉大模型。
 //                                模型、提示词、参数、出错换模型和输出的清理都照 latex-ocr-queen（Raycast 扩展）。
 //                                API Key 从环境变量 SILICONFLOW_API_KEY 读（../capture 从钥匙串取出来给它）
@@ -8,31 +8,71 @@
 import AppKit
 import Vision
 
+/// 一种语言的模型认一遍。系统一次只用排第一的语言的模型认（后面的只用来校正），所以中、日、韩要分开认
+func recognize(_ image: CGImage, _ language: String) -> [VNRecognizedTextObservation] {
+    let request = VNRecognizeTextRequest()
+    request.recognitionLevel = .accurate
+    request.usesLanguageCorrection = true
+    request.recognitionLanguages = language == "zh-Hans" ? ["zh-Hans", "zh-Hant", "en-US"] : [language, "en-US"]
+    try? VNImageRequestHandler(cgImage: image).perform([request])
+    return request.results ?? []
+}
+
+struct TextPiece {
+    var box: CGRect   // 图里的位置（0–1，原点在左下角）
+    var text: String
+}
+
 func recognizeText(_ path: String) {
     guard let image = NSImage(contentsOfFile: path)?.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
         FileHandle.standardError.write("读不了这张图\n".data(using: .utf8)!)
         exit(1)
     }
-    let request = VNRecognizeTextRequest()
-    request.recognitionLevel = .accurate
-    request.usesLanguageCorrection = true
-    request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
-    request.automaticallyDetectsLanguage = true
-    do {
-        try VNImageRequestHandler(cgImage: image).perform([request])
-    } catch {
-        FileHandle.standardError.write("文字识别失败：\(error.localizedDescription)\n".data(using: .utf8)!)
-        exit(1)
+    // 中文模型认中英文（简繁都行），日文、韩文要各自的模型：三遍同时认，再合起来
+    let languages = ["zh-Hans", "ja-JP", "ko-KR"]
+    var passes = [[VNRecognizedTextObservation]](repeating: [], count: languages.count)
+    let lock = NSLock()
+    DispatchQueue.concurrentPerform(iterations: languages.count) { i in
+        let result = recognize(image, languages[i])
+        lock.lock()
+        passes[i] = result
+        lock.unlock()
     }
+    func sameLine(_ a: CGRect, _ b: CGRect) -> Bool { abs(a.midY - b.midY) < min(a.height, b.height) / 2 }
+    func overlap(_ a: CGRect, _ b: CGRect) -> CGFloat { max(0, min(a.maxX, b.maxX) - max(a.minX, b.minX)) }
+
+    var pieces = passes[0].compactMap { o in o.topCandidates(1).first.map { TextPiece(box: o.boundingBox, text: $0.string) } }
+    // 日文：有假名的一行整行用日文模型的（它也认汉字和英文），替掉中文模型在那里认出来的零碎（中文模型不认假名，常常整行漏掉）
+    for o in passes[1] {
+        guard let text = o.topCandidates(1).first?.string,
+              text.range(of: "[\\u3041-\\u3096\\u30a1-\\u30fa\\u30fc]", options: .regularExpression) != nil else { continue }   // 假名（不算・这类标点）
+        pieces.removeAll { sameLine($0.box, o.boundingBox) && overlap($0.box, o.boundingBox) > 0 }
+        pieces.append(TextPiece(box: o.boundingBox, text: text))
+    }
+    // 韩文：有谚文的一行，中文模型没认出来的那几个词用韩文模型的（韩文模型认汉字会认错，所以中文模型认出来的部分不换）
+    for o in passes[2] {
+        guard let candidate = o.topCandidates(1).first,
+              candidate.string.range(of: "[\\uac00-\\ud7af]", options: .regularExpression) != nil else { continue }
+        let line = pieces.filter { sameLine($0.box, o.boundingBox) }
+        if line.isEmpty {
+            pieces.append(TextPiece(box: o.boundingBox, text: candidate.string))
+            continue
+        }
+        let text = candidate.string
+        for word in text.split(whereSeparator: \.isWhitespace) {
+            guard let box = (try? candidate.boundingBox(for: word.startIndex..<word.endIndex))?.boundingBox else { continue }
+            if line.allSatisfy({ overlap($0.box, box) < box.width * 0.3 }) {
+                pieces.append(TextPiece(box: box, text: String(word)))
+            }
+        }
+    }
+
     // 按行排：Vision 给的顺序常常是一栏一栏的（两栏的表格先出左边一整列）。从上往下，竖直方向和上一行中线
     // 相差不到半个字高的算同一行，同一行从左往右用空格连起来
-    let pieces = (request.results ?? []).compactMap { observation -> (box: CGRect, text: String)? in
-        guard let text = observation.topCandidates(1).first?.string else { return nil }
-        return (observation.boundingBox, text)
-    }.sorted { $0.box.midY > $1.box.midY }   // 坐标原点在左下角
-    var rows: [[(box: CGRect, text: String)]] = []
+    pieces.sort { $0.box.midY > $1.box.midY }
+    var rows: [[TextPiece]] = []
     for piece in pieces {
-        if let last = rows.last?.first, abs(last.box.midY - piece.box.midY) < min(last.box.height, piece.box.height) / 2 {
+        if let last = rows.last?.first, sameLine(last.box, piece.box) {
             rows[rows.count - 1].append(piece)
         } else {
             rows.append([piece])

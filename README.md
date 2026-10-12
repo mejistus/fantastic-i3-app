@@ -67,10 +67,10 @@ The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantast
 | <kbd>⌥D</kbd> | Bring a Finder window to this workspace, or open one |
 | <kbd>⌥⇧D</kbd> | Open a new Finder window on Documents here |
 | <kbd>⌥G</kbd> | Default browser on workspace 1: focus its window there, or open one |
-| <kbd>⌥O</kbd> | Select a screen region and copy the text in it (macOS's own text recognition: Chinese and English, offline) |
-| <kbd>⌥I</kbd> | Select a formula and copy its LaTeX source (a SiliconFlow vision model, the same model, prompt and cleanup as the latex-ocr-queen Raycast extension). Needs your SiliconFlow API key in the keychain, see below |
+| <kbd>⌥O</kbd> | Select a screen region and copy the text in it, row by row (macOS's own text recognition, offline). Chinese and English, simplified and traditional, also mixed with Japanese or Korean: the Chinese, Japanese and Korean models each read the image and the results are merged |
+| <kbd>⌥I</kbd> | Select a formula and copy its LaTeX source (a SiliconFlow vision model, the same model, prompt and cleanup as the latex-ocr-queen Raycast extension). Needs your SiliconFlow API key, see below |
 
-For ⌥I, store your SiliconFlow API key in the keychain once; the command asks you to paste it, so it stays out of your shell history: `security add-generic-password -U -a "$USER" -s fantastic-i3-siliconflow -w`. The environment variables `SILICONFLOW_API_KEY` / `SILICONFLOW_API_TOKEN` work too. If Raycast also binds ⌥O / ⌥I, remove those hotkeys there.
+For ⌥I, put your SiliconFlow API key in `SILICONFLOW_API_TOKEN` (or `SILICONFLOW_API_KEY`). Commands started by skhd don't go through your shell, so `capture` takes the line that exports it from `~/.zshrc` and has zsh evaluate just that line. A keychain item also works: `security add-generic-password -U -a "$USER" -s fantastic-i3-siliconflow -w`. If Raycast also binds ⌥O / ⌥I, remove those hotkeys there.
 
 In both lists, type to search. Keys go straight into the search box, past your input method, which stays as it was. Chinese names match by pinyin, in full or by initials (天氣: `tianqi` or `tq`). ↑ ↓ or the list's own key (⌥⇥ / ⌘⇥, add ⇧ to go up) select, Return or a click switches, Esc closes, ⌘+ / ⌘- change the font size.
 

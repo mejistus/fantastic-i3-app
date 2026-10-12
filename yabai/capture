@@ -5,9 +5,12 @@
 # 框选时按 Esc 取消。认出来后发一条通知，显示开头一段；失败时通知里写原因。
 # 识别在 aero-helper 里（helper/capture.swift）。
 #
-# 公式要 SiliconFlow 的 API Key：先看环境变量 SILICONFLOW_API_KEY / SILICONFLOW_API_TOKEN，没有就从钥匙串里取
-# （服务名 fantastic-i3-siliconflow）。存进钥匙串（会提示你粘贴 Key，不会留在命令历史里）：
-#   security add-generic-password -U -a "$USER" -s fantastic-i3-siliconflow -w
+# 公式要 SiliconFlow 的 API Key，按顺序找：
+#   1. 环境变量 SILICONFLOW_API_TOKEN / SILICONFLOW_API_KEY（从终端里运行时就有）
+#   2. ~/.zshrc 里 export 它的那一行：skhd 启动的命令不经过 zsh，拿不到那里设的环境变量。只取那一行交给 zsh 求值
+#      （zsh -f，不读别的配置；引号之类照 zsh 的规矩），不用为了一个变量把整个 .zshrc 跑一遍（要一秒多）
+#   3. 钥匙串里服务名 fantastic-i3-siliconflow 的条目：
+#      security add-generic-password -U -a "$USER" -s fantastic-i3-siliconflow -w
 
 export PATH=/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin
 AERO="$HOME/.config/yabai/aero"
@@ -18,6 +21,16 @@ case $mode in
     formula) title="截图识公式" ;;
     *) echo "用法：capture text|formula" >&2; exit 2 ;;
 esac
+
+siliconflow_key() {
+    local key=${SILICONFLOW_API_TOKEN:-${SILICONFLOW_API_KEY:-}} line
+    if [ -z "$key" ] && [ -r "$HOME/.zshrc" ]; then
+        line=$(grep -E '^[[:space:]]*(export[[:space:]]+)?SILICONFLOW_API_(TOKEN|KEY)=' "$HOME/.zshrc" | tail -1)
+        [ -n "$line" ] && key=$(zsh -fc "$line"'; print -r -- "${SILICONFLOW_API_TOKEN:-$SILICONFLOW_API_KEY}"' 2>/dev/null)
+    fi
+    [ -n "$key" ] || key=$(security find-generic-password -s fantastic-i3-siliconflow -w 2>/dev/null)
+    printf '%s' "$key"
+}
 
 notify() { # <标题> <内容>
     osascript -e 'on run {t, m}' -e 'display notification m with title t' -e 'end run' "$1" "$2" >/dev/null 2>&1
@@ -34,10 +47,9 @@ screencapture -i -x "$image"
 [ -s "$image" ] || exit 0   # 按了 Esc
 
 if [ "$mode" = formula ]; then
-    key=${SILICONFLOW_API_KEY:-${SILICONFLOW_API_TOKEN:-}}
-    [ -n "$key" ] || key=$(security find-generic-password -s fantastic-i3-siliconflow -w 2>/dev/null)
+    key=$(siliconflow_key)
     if [ -z "$key" ]; then
-        notify "$title" "没有 SiliconFlow 的 API Key：在终端运行 security add-generic-password -U -a \"\$USER\" -s fantastic-i3-siliconflow -w"
+        notify "$title" "没有 SiliconFlow 的 API Key：在 ~/.zshrc 里 export SILICONFLOW_API_TOKEN=…"
         exit 1
     fi
     notify "$title" "正在识别…"

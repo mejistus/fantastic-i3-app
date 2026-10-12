@@ -67,10 +67,10 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | <kbd>⌥D</kbd> | 把一个 Finder 窗口拿到当前工作区，没有就新开 |
 | <kbd>⌥⇧D</kbd> | 在当前工作区新开一个 Finder 窗口，打开文稿 |
 | <kbd>⌥G</kbd> | 工作区 1 的默认浏览器：那里有它的窗口就切过去，没有就新开 |
-| <kbd>⌥O</kbd> | 框选一块屏幕，把里面的文字复制下来（系统自带的文字识别：中英文，不联网） |
-| <kbd>⌥I</kbd> | 框选一个公式，把它的 LaTeX 源码复制下来（SiliconFlow 的视觉大模型，模型、提示词和清理都和 Raycast 扩展 latex-ocr-queen 一样）。要先把 SiliconFlow 的 API Key 存进钥匙串，见下 |
+| <kbd>⌥O</kbd> | 框选一块屏幕，把里面的文字按行复制下来（系统自带的文字识别，不联网）。中英文、简繁，夹着日文、韩文也行：中、日、韩三种模型各认一遍再合起来 |
+| <kbd>⌥I</kbd> | 框选一个公式，把它的 LaTeX 源码复制下来（SiliconFlow 的视觉大模型，模型、提示词和清理都和 Raycast 扩展 latex-ocr-queen 一样）。要 SiliconFlow 的 API Key，见下 |
 
-⌥I 要用 SiliconFlow 的 API Key，存进钥匙串一次就行（命令会提示你粘贴 Key，不会留在命令历史里）：`security add-generic-password -U -a "$USER" -s fantastic-i3-siliconflow -w`。设了环境变量 `SILICONFLOW_API_KEY` / `SILICONFLOW_API_TOKEN` 也行。Raycast 里如果也给 ⌥O / ⌥I 设了快捷键，记得在那边删掉。
+⌥I 用环境变量 `SILICONFLOW_API_TOKEN`（或 `SILICONFLOW_API_KEY`）里的 SiliconFlow API Key。skhd 启动的命令不经过你的 shell，所以 `capture` 从 `~/.zshrc` 里取出 export 它的那一行，只把这一行交给 zsh 求值。也可以存进钥匙串：`security add-generic-password -U -a "$USER" -s fantastic-i3-siliconflow -w`。Raycast 里如果也给 ⌥O / ⌥I 设了快捷键，记得在那边删掉。
 
 两个列表里都直接打字搜索。按键不经过输入法，输入法保持原样。中文名用拼音搜，全拼或首字母都行（天氣：`tianqi` 或 `tq`）。↑ ↓ 或再按列表自己的键（⌥⇥ / ⌘⇥，加 ⇧ 往上）选择，回车或单击切换，Esc 关闭，⌘+ / ⌘- 调字号。
 
