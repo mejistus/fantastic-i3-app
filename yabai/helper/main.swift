@@ -12,6 +12,8 @@
 //       系统菜单栏自动隐藏 / 常显（和系统设置里的开关一样，马上生效）。现在总是常显，SketchyBar 盖在它上面（aero bar-apply）。
 //   aero-helper ocr <图片> / aero-helper formula <图片>
 //       截图识别（../capture，⌥O / ⌥I）：认出文字 / 公式的 LaTeX，输出到 stdout（capture.swift）。
+//   aero-helper clipboard-watch / aero-helper clipboard
+//       剪贴板历史（clipboard.swift）：常驻记录（yabairc 启动）/ ⌥⇧V 的面板。
 //   aero-helper input-select <i>
 //       切到输入法面板第 i 行的输入法（顶栏输入法面板里点一行时调）。
 //   aero-helper switcher [--select 窗口id] [--apps | --launchpad] [--font-size N] [--width 屏幕宽度%] [--rows N]
@@ -840,6 +842,14 @@ case "lock":
 case "bar-backdrop":
     let backdrop = BarBackdrop()   // 同上，要留着强引用
     backdrop.run()
+case "clipboard-watch":
+    watchClipboard()
+case "clipboard":
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let clipboard = ClipboardPanel()
+    app.delegate = clipboard
+    app.run()
 case "switcher":
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)

@@ -39,6 +39,12 @@ if [ -z "$AERO_RELOAD" ] || ! pgrep -qf "^$HELPER option-fn"; then
     "$HELPER" option-fn "$AERO workspace 10" >/dev/null 2>&1 &
 fi
 
+# 剪贴板历史（⌥⇧V 的面板读它）：aero-helper 常驻，记下每次复制的内容。和上面一样，yabai 重启时再启动
+if [ -z "$AERO_RELOAD" ] || ! pgrep -qf "^$HELPER clipboard-watch"; then
+    pkill -f "^$HELPER clipboard-watch" 2>/dev/null
+    "$HELPER" clipboard-watch >/dev/null 2>&1 &
+fi
+
 # ⌘⇥ 和 ⌘Space 交给 skhd（⌘⇥ 窗口列表、⌘Space 应用列表，见 window_switcher）：关掉 macOS 自带的应用切换器和 Spotlight 的快捷键。
 # 重新登录后会恢复，所以每次都关
 "$AERO" helper native-hotkeys off

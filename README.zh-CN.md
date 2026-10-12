@@ -67,6 +67,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | <kbd>⌥D</kbd> | 把一个 Finder 窗口拿到当前工作区，没有就新开 |
 | <kbd>⌥⇧D</kbd> | 在当前工作区新开一个 Finder 窗口，打开文稿 |
 | <kbd>⌥G</kbd> | 工作区 1 的默认浏览器：那里有它的窗口就切过去，没有就新开 |
+| <kbd>⌥⇧V</kbd> | 剪贴板历史：复制过的文字、图片、文件（最多 300 条，其中图片 40 张），新的在前，右边预览。打字搜索（拼音也行），回车粘贴到原来的应用，⌘回车只复制，⌘⌫ 删掉一条。密码管理器标成隐藏的内容不记。存在 `~/.config/fantastic-i3/clipboard/`，只有你自己能读 |
 | <kbd>⌥O</kbd> | 框选一块屏幕，把里面的文字按行复制下来（系统自带的文字识别，不联网）。中英文、简繁，夹着日文、韩文也行：中、日、韩三种模型各认一遍再合起来 |
 | <kbd>⌥I</kbd> | 框选一个公式，把它的 LaTeX 源码复制下来（SiliconFlow 的视觉大模型，模型、提示词和清理都和 Raycast 扩展 latex-ocr-queen 一样）。要 SiliconFlow 的 API Key，见下 |
 
@@ -179,7 +180,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | [`install.sh`](install.sh) | 安装脚本 |
 | [`yabai/yabairc`](yabai/yabairc) | yabai 配置：规则、固定工作区、信号 |
 | [`yabai/aero`](yabai/aero) | 快捷键调用的工作区和窗口命令 |
-| [`yabai/helper/`](yabai/helper) | aero-helper（Swift）：切换列表、顶栏数据和背景 |
+| [`yabai/helper/`](yabai/helper) | aero-helper（Swift）：切换列表、剪贴板历史、截图识别、顶栏数据和背景 |
 | [`yabai/helper/panels/`](yabai/helper/panels) | Wi-Fi、蓝牙面板，单独编译成一个小 App：看 Wi-Fi 名称要定位权限、读蓝牙设备要蓝牙权限，这两个权限都只能给 App |
 | [`yabai/setup-sa`](yabai/setup-sa) | 脚本扩展的安装 |
 | [`skhd/`](skhd) | 快捷键 |

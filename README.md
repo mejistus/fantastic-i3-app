@@ -67,6 +67,7 @@ The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantast
 | <kbd>⌥D</kbd> | Bring a Finder window to this workspace, or open one |
 | <kbd>⌥⇧D</kbd> | Open a new Finder window on Documents here |
 | <kbd>⌥G</kbd> | Default browser on workspace 1: focus its window there, or open one |
+| <kbd>⌥⇧V</kbd> | Clipboard history: text, images and files you copied (up to 300 entries, 40 images), newest first, with a preview on the right. Type to search (pinyin too), Return pastes into the app you were in, ⌘Return only copies, ⌘⌫ deletes an entry. Items password managers mark as concealed aren't kept. Stored in `~/.config/fantastic-i3/clipboard/`, readable only by you |
 | <kbd>⌥O</kbd> | Select a screen region and copy the text in it, row by row (macOS's own text recognition, offline). Chinese and English, simplified and traditional, also mixed with Japanese or Korean: the Chinese, Japanese and Korean models each read the image and the results are merged |
 | <kbd>⌥I</kbd> | Select a formula and copy its LaTeX source (a SiliconFlow vision model, the same model, prompt and cleanup as the latex-ocr-queen Raycast extension). Needs your SiliconFlow API key, see below |
 
@@ -179,7 +180,7 @@ Once it's loaded, missing desktops are created automatically. Run `setup-sa` aga
 | [`install.sh`](install.sh) | The installer |
 | [`yabai/yabairc`](yabai/yabairc) | yabai config: rules, fixed workspaces, signals |
 | [`yabai/aero`](yabai/aero) | Workspace and window commands the keys call |
-| [`yabai/helper/`](yabai/helper) | aero-helper (Swift): the switcher lists, bar stats and backdrop |
+| [`yabai/helper/`](yabai/helper) | aero-helper (Swift): the switcher lists, clipboard history, screenshot recognition, bar stats and backdrop |
 | [`yabai/helper/panels/`](yabai/helper/panels) | The Wi-Fi and Bluetooth panels, built as their own small app because location access (needed for Wi-Fi names) and Bluetooth access are only granted to apps |
 | [`yabai/setup-sa`](yabai/setup-sa) | Scripting addition setup |
 | [`skhd/`](skhd) | Keys |

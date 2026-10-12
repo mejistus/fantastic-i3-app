@@ -86,6 +86,9 @@ alt + shift - d : $HOME/.config/yabai/new_window_here "$HOME/Documents"
 alt - o : $HOME/.config/yabai/capture text
 alt - i : $HOME/.config/yabai/capture formula
 
+# ⌥⇧V：剪贴板历史（../yabai/helper/clipboard.swift）。打字搜索，回车粘贴，⌘回车只复制，⌘⌫ 删掉一条
+alt + shift - v : $HOME/.config/yabai/aero helper clipboard
+
 # ⌥G = 工作区 1 的默认浏览器：那里有它的窗口就切过去，没有就切到工作区 1 新开一个
 alt - g : $HOME/.config/yabai/focus_browser
 # ⌥ + Caps Lock = ⌥0（工作区 10）：skhd 绑不了 Caps Lock（外接键盘上改成了 🌐/fn），
