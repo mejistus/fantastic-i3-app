@@ -1,8 +1,8 @@
 #!/bin/bash
 # fantastic-app-launcher：应用启动器和窗口切换器（yabai 版）
-#   fantastic-app-launcher --list   立刻弹出所有桌面的窗口列表（⌘⇥）
+#   fantastic-app-launcher --list   立刻弹出所有桌面的窗口列表
 #   fantastic-app-launcher --back   直接切到上一个用过的窗口（back-and-forth）
-#   fantastic-app-launcher [--auto] 快速按一下 = --back，按住修饰键超过 HOLD_SECONDS = --list
+#   fantastic-app-launcher [--auto] 快速按一下 = --back，按住修饰键超过 HOLD_SECONDS = --list（⌘⇥）
 #   fantastic-app-launcher --apps [--auto | --list | --back]
 #                            按应用切换：快速按一下 = 回到上一个用过的应用，按住 = 应用列表（⌥⇥ 用 --auto，⌘Space 用 --list）
 #   --key option|command     --auto 等哪个修饰键松开（快捷键用的那个）；默认窗口列表 option、应用列表 command
@@ -14,7 +14,7 @@
 # 应用列表：启动台里的所有应用，一个应用一行。最上面是有窗口的（按最近使用，选中就切到它最近用的那个窗口），
 #       然后是 Dock 里亮着点、没有窗口的，最后是没开的（按名字），选中就打开它。其余和窗口列表一样
 # 窗口使用顺序由 yabai 的 window_focused 信号记录（aero mru-push）；列表界面是 aero-helper switcher。
-# 绑定：skhdrc 中的 alt - tab（应用）、cmd - tab（窗口列表）和 cmd - space（直接弹出应用列表）；
+# 绑定：skhdrc 中的 alt - tab（应用）、cmd - tab（窗口）和 cmd - space（直接弹出应用列表）；
 # macOS 自带的 ⌘⇥ 和 Spotlight 的 ⌘Space 由 yabairc 关掉
 
 HOLD_SECONDS=0.25

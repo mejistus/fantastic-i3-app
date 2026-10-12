@@ -62,7 +62,7 @@ The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantast
 | Key | Action |
 |---|---|
 | <kbd>⌥⇥</kbd> | Tap: previous app. Hold ⌥: the app list |
-| <kbd>⌘⇥</kbd> | Window list, replacing the macOS app switcher. The previous window is selected, so ⌘⇥ then Return goes back to it |
+| <kbd>⌘⇥</kbd> | Replaces the macOS app switcher, by window. Tap: back to the previous window. Hold ⌘: list of the windows on every workspace |
 | <kbd>⌘Space</kbd> | The app list straight away, instead of Spotlight. Press again to close |
 | <kbd>⌥D</kbd> | Bring a Finder window to this workspace, or open one |
 | <kbd>⌥⇧D</kbd> | Open a new Finder window on Documents here |

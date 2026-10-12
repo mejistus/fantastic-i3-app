@@ -64,12 +64,13 @@ alt + shift - t : $HOME/.config/yabai/aero move-node-to-workspace T --focus-foll
 alt + shift - tab : $HOME/.config/yabai/aero move-workspace-to-monitor --wrap-around next
 
 # 应用切换器（⌥⇥）和窗口列表：../bin/fantastic-app-launcher（install.sh 把 ../bin 里的命令链到 ~/.local/bin）。（⌘⇥，macOS 自带的由 yabairc 关掉；⌘Space 直接弹出应用列表，Spotlight 的快捷键同样关掉）
-#   ⌥⇥ 快速按一下 = 回到上一个用过的应用，按住 ⌥ = 弹出应用列表；⌘⇥ 直接弹出窗口列表（上一个用过的窗口已选中，回车就回去）
+#   ⌥⇥ 快速按一下 = 回到上一个用过的应用，按住 ⌥ = 弹出应用列表
+#   ⌘⇥ 快速按一下 = 回到上一个用过的窗口，按住 ⌘ = 弹出窗口列表（所有桌面的窗口）
 #   列表里打字直接搜索：按键不经过输入法，搜狗之类不用切走
 #   应用列表里是启动台里的所有应用：有窗口的在最上面，然后是开着但没窗口的，最后是没开的
 # 列表开着时 skhd 不拦截任何键（见下面的 .blacklist）：⌥⇥ / ⌥⇧⇥（⌘⇥ / ⌘⇧⇥）在列表里往下 / 往上选，Esc 关闭
 alt - tab : $HOME/.local/bin/fantastic-app-launcher --apps --key option --auto
-cmd - tab : $HOME/.local/bin/fantastic-app-launcher --list
+cmd - tab : $HOME/.local/bin/fantastic-app-launcher --key command --auto
 cmd - space : $HOME/.local/bin/fantastic-app-launcher --apps --list
 .blacklist [
     "aero-helper"
