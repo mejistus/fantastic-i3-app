@@ -104,9 +104,8 @@ LABEL_GAP=6
 ITEM_GAP=6
 # 宽度 = 最宽那个的字形宽度（colors.sh 里按主题的字体量好的 PERCENT_GLYPH / RATE_GLYPH）+ label 左右内边距。
 # Maple Mono SemiBold 13：两位数最宽 "40%" 22.5，满载 bar-stats 写 "100"（21.7，不带 %），所以容下两位数就够；
-# 网速最多 4 个字符，数字（Medium 12）最宽 "400M" 27.5。网速的内边距是 2 + 4（箭头和数字挨着）
+# 网速最多 4 个字符，12 号数字最宽 "400M" 27.5（RATE_GLYPH）；栏上的网速是上下两行的小字，宽度在网速那里按比例算
 PERCENT_WIDTH=$((PERCENT_GLYPH + LABEL_GAP + 4))
-RATE_WIDTH=$((RATE_GLYPH + 2 + 4))
 
 # ---- 弹出面板：样式和几种行 ----
 # 面板宽 POPUP_WIDTH，每一行左右都不留白（下面新建的项默认 padding 0，栏上右边的项后面会单独设间距），
@@ -242,20 +241,23 @@ for i in 0 1 2 3 4; do
 done
 
 # ---- 网速：一项只能有图标、文字两种颜色，箭头要单独上色，所以拆成三块：
-#      net（网络类型图标，带弹出面板）、net.rx（↓ 下载）、net.tx（↑ 上传），右边的先加。
+#      net（网络类型图标）、net.rx（↓ 下载）、net.tx（↑ 上传），右边的先加。
+#      上传在上、下载在下，叠在同一个位置（字小一号，24 高的栏放得下两行）：先加的 net.tx 宽度设成 0，
+#      它的内容往左画，正好盖在后加的 net.rx 上；两个的右边距一样（ITEM_GAP），右端才对齐。
 #      点哪一块都由 hover.sh 当成 net 处理：开 / 收 Wi-Fi 面板。那个面板不是 SketchyBar 的，是一个单独的小 App
 #      （../yabai/helper/wifi，aero wifi 编译、启动），因为要搜索框、密码框，还要定位权限才看得到 Wi-Fi 名称。
 #      label 由 bar-stats 推送 ----
+STACK_RATE_WIDTH=$((RATE_GLYPH * 95 / 120 + 7))   # 9.5 号字的"400M"（RATE_GLYPH 是 12 号的）+ label 内边距
 for part in tx rx; do
-    [ $part = tx ] && arrow=󱦲 color=$RED_DIM pad_right=$ITEM_GAP || arrow=󱦳 color=$GREEN_DIM pad_right=0
+    [ $part = tx ] && arrow=󱦲 color=$RED_DIM y=5 width=0 || arrow=󱦳 color=$GREEN_DIM y=-5 width=dynamic
     sketchybar --add item net.$part right \
-        --set net.$part padding_left=0 padding_right=$pad_right \
-            icon=$arrow icon.color=$color icon.font="$FONT:Medium:12.0" icon.padding_left=4 icon.padding_right=1 \
-            label.font="$TEXT_FONT:$MEDIUM:12.0" label.padding_left=2 label.padding_right=4 label.width=$RATE_WIDTH \
+        --set net.$part padding_left=0 padding_right=$ITEM_GAP width=$width y_offset=$y \
+            icon=$arrow icon.color=$color icon.font="$FONT:Medium:9.0" icon.padding_left=$LABEL_GAP icon.padding_right=1 \
+            label.font="$TEXT_FONT:$SEMIBOLD:9.5" label.padding_left=2 label.padding_right=4 \
+            label.width=$STACK_RATE_WIDTH label.align=right \
             script="$PLUGINS/hover.sh" \
         --subscribe net.$part mouse.clicked
 done
-sketchybar --set net.rx icon.padding_left=$LABEL_GAP   # 类型图标和 ↓ 之间和别的项图标、数字之间一样宽
 sketchybar --add item net right \
     --set net padding_left=$ITEM_GAP padding_right=0 icon=󰖟 icon.color=$BAR_CYAN label.drawing=off \
         script="$PLUGINS/hover.sh"
