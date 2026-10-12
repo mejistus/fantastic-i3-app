@@ -466,10 +466,14 @@ cmd_bar_apply() {
     helper menubar-autohide off
     [ "$before" = 0 ] || (finder_relaunch >/dev/null 2>&1 &)
     yabai -m config external_bar all:0:0 2>/dev/null
+    # 栏开着时系统菜单栏透明度设成 0：看不见（右边的状态图标也是），也不接鼠标（点击穿过去），但位置照样占着。
+    # 不然状态图标和栏同在层级 25，哪个应用更新一下图标就可能排到栏前面，两条栏同时出现
     if [ "$which" = native ]; then
         sketchybar --bar hidden=on
+        yabai -m config menubar_opacity 1.0 2>/dev/null
     else
         sketchybar --bar hidden=off
+        yabai -m config menubar_opacity 0.0 2>/dev/null
     fi
     pkill -USR1 -f "^$HELPER bar-backdrop"
 }

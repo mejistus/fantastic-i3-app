@@ -250,6 +250,8 @@ final class BarBackdrop {
                 && rects.contains { other in other.number != panel.number && panel.rect.contains(other.rect) }
         }
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+        // 窗口列表是从前往后排的：材质窗口已经紧跟在面板背景后面就不用再排（每秒 30 次重排会让面板一顿一顿的）
+        let order = info.compactMap { $0[kCGWindowNumber as String] as? Int }
         var keep = Set<Int>()
         for (number, rect) in backgrounds {
             keep.insert(number)
@@ -260,6 +262,7 @@ final class BarBackdrop {
                 window.setFrame(frame, display: true)
                 window.invalidateShadow()
             }
+            if let at = order.firstIndex(of: number), at + 1 < order.count, order[at + 1] == window.windowNumber { continue }
             window.order(.below, relativeTo: number)
         }
         for (number, window) in glass where !keep.contains(number) {

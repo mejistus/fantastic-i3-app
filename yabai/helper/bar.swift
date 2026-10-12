@@ -660,8 +660,10 @@ final class BarStats {
             guard let self, self.hovered() == item else { return }
             // 面板只在一块屏上：先量面板（从两头找第一个画出来的行），再挑和它同一块屏上的那一项
             let rows = (self.query(item)?["popup"] as? [String: Any])?["items"] as? [String] ?? []
-            let top = rows.lazy.compactMap { self.frame($0) }.first
-            let bottom = top.flatMap { top in rows.reversed().lazy.compactMap { self.frame($0, near: top) }.first }
+            // 用普通的循环：以前写成 rows.reversed().lazy.compactMap { … }.first，编译出来量不到的行会直接崩（2026-10-12 的崩溃报告）
+            var top: CGRect?, bottom: CGRect?
+            for row in rows { if let rect = self.frame(row) { top = rect; break } }
+            if let top { for row in rows.reversed() { if let rect = self.frame(row, near: top) { bottom = rect; break } } }
             guard let top, let bottom, let bar = self.frame(item, near: top) else {
                 if attempt < 5 { self.watchPopup(item, attempt: attempt + 1) }
                 return
