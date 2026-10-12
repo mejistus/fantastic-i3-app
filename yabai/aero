@@ -19,7 +19,7 @@
 #   aero follow window <窗口 id> <工作区> | app <pid>         有固定工作区的应用：跟过去（yabairc 里 follow 的信号调）
 #   aero app-workspace <应用名>...                           应用固定的工作区（yabairc 里带工作区号的规则、⌃S W 记住的），没有就不输出
 #   aero focus-window <窗口 id>                              聚焦窗口（在别的桌面就先切过去）
-#   aero mru-push <窗口 id>                                  记录窗口使用顺序（给 ⌥⇥ 窗口切换器用）
+#   aero mru-push <窗口 id>                                  记录窗口使用顺序（给 ⌘⇥ 窗口列表用）
 #   aero helper <…>                                          运行 aero-helper（需要时自动编译）
 #   aero reload                                              = reload-config（不重启 yabai，不打乱窗口）
 #   aero keys <auto|sa|native> [--force]                     桌面快捷键模式（见下）
@@ -390,7 +390,7 @@ cmd_focus_window() {
     return 0
 }
 
-# 记录窗口的使用顺序（yabai 的 window_focused 信号调用），供 ⌥⇥ 窗口切换器排序
+# 记录窗口的使用顺序（yabai 的 window_focused 信号调用），供 ⌘⇥ 窗口列表排序
 cmd_mru_push() {
     local id=${1:-} f="$STATE/mru"
     [ -n "$id" ] || return 0

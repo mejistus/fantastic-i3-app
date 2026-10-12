@@ -7,7 +7,7 @@
 //       等这些修饰键全部松开；超时仍按着则退出码为 1。
 //   aero-helper native-hotkeys on|off
 //       打开 / 关闭 macOS 自带的 ⌘⇥ / ⌘⇧⇥ 应用切换器和 Spotlight 的 ⌘Space（关掉后这几个键才能交给 skhd）。
-//       效果持续到重新登录。yabairc 每次启动都关掉它们：⌘⇥ 和 ⌘Space 是按应用切换的列表（window_switcher --apps）。
+//       效果持续到重新登录。yabairc 每次启动都关掉它们：⌘⇥ 是窗口列表、⌘Space 是应用列表（window_switcher）。
 //   aero-helper menubar-autohide on|off
 //       系统菜单栏自动隐藏 / 常显（和系统设置里的开关一样，马上生效）。SketchyBar 在时自动隐藏，⌥⇧↩ 关掉它时常显。
 //   aero-helper switcher [--select 窗口id] [--apps | --launchpad] [--font-size N] [--width 屏幕宽度%] [--rows N]

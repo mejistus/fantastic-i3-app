@@ -59,8 +59,8 @@ Last, it prints a key cheat sheet. Take a screenshot of it; `install.sh --keys` 
 
 | Key | Action |
 |---|---|
-| <kbd>⌥⇥</kbd> | Window list, with the previous window selected, so ⌥⇥ then Return goes back to it |
-| <kbd>⌘⇥</kbd> | Replaces the macOS app switcher. Tap: previous app. Hold ⌘: the app list |
+| <kbd>⌥⇥</kbd> | Tap: previous app. Hold ⌥: the app list |
+| <kbd>⌘⇥</kbd> | Window list, replacing the macOS app switcher. The previous window is selected, so ⌘⇥ then Return goes back to it |
 | <kbd>⌘Space</kbd> | The app list straight away, instead of Spotlight. Press again to close |
 | <kbd>⌥D</kbd> | Bring a Finder window to this workspace, or open one |
 | <kbd>⌥⇧D</kbd> | Open a new Finder window on Documents here |

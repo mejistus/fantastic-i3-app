@@ -1,10 +1,11 @@
 #!/bin/bash
 # 窗口切换器（yabai 版）
-#   window_switcher --list   立刻弹出所有桌面的窗口列表
+#   window_switcher --list   立刻弹出所有桌面的窗口列表（⌘⇥）
 #   window_switcher --back   直接切到上一个用过的窗口（back-and-forth）
-#   window_switcher [--auto] 快速按一下 = --back，按住 ⌥ 超过 HOLD_SECONDS = --list（⌥⇥ 现在直接用 --list）
+#   window_switcher [--auto] 快速按一下 = --back，按住修饰键超过 HOLD_SECONDS = --list
 #   window_switcher --apps [--auto | --list | --back]
-#                            按应用切换（⌘⇥）：快速按一下 = 回到上一个用过的应用，按住 ⌘ = 应用列表
+#                            按应用切换：快速按一下 = 回到上一个用过的应用，按住 = 应用列表（⌥⇥ 用 --auto，⌘Space 用 --list）
+#   --key option|command     --auto 等哪个修饰键松开（快捷键用的那个）；默认窗口列表 option、应用列表 command
 #
 # 列表：带应用图标，按桌面编号排序，上一个用过的窗口已选中；末尾是 Dock 里亮着点、但没有窗口的应用，
 #       选中它就像点 Dock 图标（一般会新开一个窗口）。按键不经过输入法（输入法不切换、不出候选框），
@@ -13,7 +14,8 @@
 # 应用列表：启动台里的所有应用，一个应用一行。最上面是有窗口的（按最近使用，选中就切到它最近用的那个窗口），
 #       然后是 Dock 里亮着点、没有窗口的，最后是没开的（按名字），选中就打开它。其余和窗口列表一样
 # 窗口使用顺序由 yabai 的 window_focused 信号记录（aero mru-push）；列表界面是 aero-helper switcher。
-# 绑定：skhdrc 中的 alt - tab、cmd - tab 和 cmd - space（直接弹出应用列表）；macOS 自带的 ⌘⇥ 和 Spotlight 的 ⌘Space 由 yabairc 关掉
+# 绑定：skhdrc 中的 alt - tab（应用）、cmd - tab（窗口列表）和 cmd - space（直接弹出应用列表）；
+# macOS 自带的 ⌘⇥ 和 Spotlight 的 ⌘Space 由 yabairc 关掉
 
 HOLD_SECONDS=0.25
 FONT_SIZE=28      # 默认字号（用 ⌘+ / ⌘- 调过之后以调过的为准）
@@ -25,7 +27,7 @@ AERO="$HOME/Documents/fantastic-i3-macOS/yabai/aero"
 STATE="/tmp/yabai-aero-$USER"
 mkdir -p "$STATE"
 
-# 列表开着时再按 ⌥⇥ 不重复打开
+# 列表开着时再按一次快捷键不重复打开
 lock="$STATE/switcher.lock"
 if ! mkdir "$lock" 2>/dev/null; then
     kill -0 "$(cat "$lock/pid" 2>/dev/null)" 2>/dev/null && exit 0
@@ -36,22 +38,29 @@ echo $$ >"$lock/pid"
 trap "rm -rf '$lock'" EXIT
 
 by_app=
-key=option
-if [ "$1" = --apps ]; then by_app=1; key=command; shift; fi
+key=
+while :; do
+    case $1 in
+        --apps) by_app=1; shift ;;
+        --key) key=$2; shift 2 ;;
+        *) break ;;
+    esac
+done
+[ -n "$key" ] || if [ -n "$by_app" ]; then key=command; else key=option; fi
 mode=${1:---auto}
 case $mode in
     --auto)
         # 等 ⌥ / ⌘ 松开，最多 HOLD_SECONDS 秒：松开了就是"快速按一下"
         if "$AERO" helper wait-release "$key" "$HOLD_SECONDS"; then mode=--back; else mode=--list; fi ;;
     --list | --back) ;;
-    *) echo "用法：window_switcher [--apps] [--auto | --list | --back]" >&2; exit 2 ;;
+    *) echo "用法：window_switcher [--apps] [--key option|command] [--auto | --list | --back]" >&2; exit 2 ;;
 esac
 
 mru=$(jq -R -s 'split("\n") | map(select(length > 0) | tonumber)' "$STATE/mru" 2>/dev/null || echo '[]')
 windows=$(yabai -m query --windows)
 
 # 当前窗口。焦点在面板、对话框这类不在列表里的窗口上时（比如 Gemini 激活时焦点会落到一个小窗口上），
-# 把同一应用最近用过的普通窗口当作当前窗口；否则快速按 ⌥⇥ 只会切到这个应用自己的主窗口，看起来像没反应
+# 把同一应用最近用过的普通窗口当作当前窗口；否则快速按一下只会切到这个应用自己的主窗口，看起来像没反应
 focused=$(yabai -m query --windows --window 2>/dev/null)
 cur=$(jq -r --argjson w "$windows" --argjson mru "$mru" '
     . as $f
