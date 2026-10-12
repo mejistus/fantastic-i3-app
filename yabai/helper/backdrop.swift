@@ -64,11 +64,11 @@ final class BarBackdrop {
             self?.checkWallpaper()
         }
         Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.sync() }
-        Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
-            self?.checkCovered()
-            self?.syncPanels()
-        }.tolerance = 0.05
-        // plugins/hover.sh 打开 / 收起面板后发 SIGUSR2：马上垫上材质，不等 0.2 秒一次的检查（面板出现可能晚几毫秒，再补看几次）
+        // 每秒看一次有没有盖满整块屏的窗口。查一次完整的窗口列表要几毫秒（窗口多时更多，窗口服务器那边也要干活），
+        // 以前和面板一起每 0.2 秒查两次，这个进程常年占 20% 的 CPU
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.checkCovered() }.tolerance = 0.2
+        // 面板不定时查：plugins/hover.sh 打开 / 收起面板后发 SIGUSR2，马上垫上材质（面板出现可能晚几毫秒，再补看几次），
+        // 之后面板开着时每 1/30 秒跟一次，收起后就停
         signal(SIGUSR2, SIG_IGN)
         let panels = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
         panels.setEventHandler { [weak self] in
@@ -170,7 +170,7 @@ final class BarBackdrop {
     /// SketchyBar 只在原生全屏的桌面上藏栏，管不到这种；栏和底板又在所有窗口之上，就压在放映的画面上。
     /// 这时把两者都降到普通窗口下面，让它盖住：栏 topmost=off（层级 -20），底板 -21。
     /// 不直接藏：SketchyBar 没法只藏一块屏上的栏，降下去则只有被盖住的屏看不到。
-    /// 每 0.2 秒看一次窗口列表（约 0.5 ms）：放映开始时程序没有切换、桌面也没变，没有通知可等。
+    /// 每秒看一次窗口列表：放映开始时程序没有切换、桌面也没变，没有通知可等（最多晚 1 秒降下去）。
     /// 菜单栏常显时，最大化的窗口盖不到菜单栏那一截，不会算成盖满
     func checkCovered() {
         guard coveredByWindow() != lowered else { return }
@@ -234,7 +234,7 @@ final class BarBackdrop {
     /// SketchyBar 的面板底色是全透明的（sketchybarrc 的 popup()），这里在每个打开的面板后面垫一块系统菜单的材质（.menu）：
     /// 磨砂、圆角、一圈细亮边和系统阴影，和原生菜单栏里点开的面板一样。面板是层级 101 的一组窗口（每行一个），
     /// 不被别的面板窗口包住的那个是背景，材质窗口和它一样大、排在它紧后面。
-    /// 面板开着时每 1/30 秒跟一次（内容变了会变高、被 bar-stats 收起），关着时靠 0.2 秒的检查和 SIGUSR2
+    /// 面板开着时每 1/30 秒跟一次（内容变了会变高、被 bar-stats 收起），关着时只等 SIGUSR2
     func syncPanels() {
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
         var rects: [(number: Int, rect: CGRect)] = []
