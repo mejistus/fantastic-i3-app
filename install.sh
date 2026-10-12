@@ -16,7 +16,7 @@
 #   5. 关掉调度中心的"根据最近的使用情况自动重新排列空间"（否则桌面顺序会变，工作区编号就乱了）
 #   6. 编译 aero-helper（窗口切换列表、顶栏的数据和底板、锁屏等，helper/*.swift）
 #   7. 启动 yabai、skhd、SketchyBar 服务（SketchyBar 已经在跑就重新加载，用上链接好的配置），检查辅助功能权限。
-#      SketchyBar 加载时把系统菜单栏设为自动隐藏、顶上换成它；~/.config/fantastic-i3/bar 里写 native 则反过来
+#      系统菜单栏设为常显、占着顶上那一截，SketchyBar 盖在它上面；~/.config/fantastic-i3/bar 里写 native 则不显示 SketchyBar
 #   8. 检查桌面够不够 17 个
 #   9. 列出快捷键（第一次用建议截图保存）
 #
@@ -70,10 +70,10 @@ EOF
 EOF
     title "其它"
     cat <<'EOF'
-  ⌥⇧↩                     SketchyBar 和系统菜单栏之间临时切换
+  ⌥⇧↩                     临时藏起 SketchyBar，露出下面的系统菜单栏（应用的菜单）
   ⌥⇧⇥                     把当前工作区挪到下一个显示器（要脚本扩展）
 EOF
-    echo "鼠标移到屏幕最上面会出现系统菜单栏。脚本扩展见 yabai/setup-sa（没有它切工作区有滑动动画）"
+    echo "应用的菜单（文件、编辑……）在 SketchyBar 下面的系统菜单栏里：⌥⇧↩ 露出来。脚本扩展见 yabai/setup-sa（没有它切工作区有滑动动画）"
     echo "再看这张表：bash $HOME_REPO/install.sh --keys"
 }
 
@@ -203,9 +203,9 @@ if [ "$yabai_ok$skhd_ok" = 11 ]; then
     "$AERO" bar-apply   # yabai 先于 SketchyBar 启动时，给顶栏留的位置还没设
     "$AERO" reload
     if [ "$(cat "$HOME/.config/fantastic-i3/bar" 2>/dev/null)" = native ]; then
-        ok "顶栏：常显的系统菜单栏，SketchyBar 关着（⌥⇧↩ 临时打开；~/.config/fantastic-i3/bar 里写的 native）"
+        ok "顶栏：系统菜单栏，SketchyBar 关着（⌥⇧↩ 临时打开；~/.config/fantastic-i3/bar 里写的 native）"
     else
-        ok "顶栏：SketchyBar，系统菜单栏自动隐藏"
+        ok "顶栏：SketchyBar，盖在常显的系统菜单栏上"
     fi
 else
     open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"

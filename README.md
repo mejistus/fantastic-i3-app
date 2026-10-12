@@ -21,7 +21,7 @@ From a clone, run `bash install.sh` in it instead. The script is safe to rerun. 
 3. Checks yabai, skhd, SketchyBar, jq and the fonts, and installs the missing ones.
 4. Links the configs into `~/.config`. Existing files are backed up.
 5. Turns off "Automatically rearrange Spaces based on most recent use".
-6. Builds aero-helper (window switcher, bar stats) and starts the services. SketchyBar then sets the macOS menu bar to auto-hide and takes its place.
+6. Builds aero-helper (window switcher, bar stats) and starts the services. The macOS menu bar is set to always show, and SketchyBar is drawn over it.
 
 Then it lists what's left to do by hand:
 
@@ -88,7 +88,7 @@ To forget a remembered app, delete its line in the file and press ⌃S Esc.
 
 | Key | Action |
 |---|---|
-| <kbd>⌥⇧↩</kbd> | Switch between the top bar and the always-visible macOS menu bar for now. Logging in or reloading SketchyBar goes back to [your choice](#top-bar) |
+| <kbd>⌥⇧↩</kbd> | Hide the top bar for now to show the macOS menu bar underneath, with the app menus; press again to bring it back. Logging in or reloading SketchyBar goes back to [your choice](#top-bar) |
 
 ## Fixed workspaces
 
@@ -109,7 +109,7 @@ The built-in list is in [`yabai/yabairc`](yabai/yabairc).
 
 ## Top bar
 
-A SketchyBar bar styled like the i3 polybar (One Dark, Maple Mono NF). It is as tall as the menu bar (24 pt) and frosted like it. Move the mouse to the top edge for the real menu bar.
+A SketchyBar bar styled like the i3 polybar (One Dark, Maple Mono NF). It is as tall as the menu bar (24 pt) and frosted like it, and it is drawn over the real menu bar, which always shows. The menu bar keeps its strip, so windows and desktop icons are laid out below it whether the bar is on or off. For the app menus (File, Edit, …), press ⌥⇧↩ to hide the bar.
 
 **Left**
 
@@ -134,16 +134,16 @@ Click an item on the right for a detail panel; click again or move away to close
 | Battery | Health, cycles, temperature |
 | Clock | Lunar date, week number |
 
-Like the native auto-hiding menu bar, the bar sits below windows: tiled windows stay clear of it, floating ones can cover it.
+Windows can't reach the menu bar's strip, so they never cover the bar. A window covering a whole screen, such as a PowerPoint slideshow, is the exception: the bar drops below it until it closes.
 
-Prefer the macOS menu bar? `echo native > ~/.config/fantastic-i3/bar` keeps it always visible with SketchyBar off, at login and on every reload; ⌥⇧↩ still swaps for now. Delete the file to go back.
+Prefer the macOS menu bar? `echo native > ~/.config/fantastic-i3/bar` keeps SketchyBar off at login and on every reload; ⌥⇧↩ still shows it for now. Delete the file to go back.
 
 <details>
 <summary>How it's built</summary>
 
 Config is in [`sketchybar/`](sketchybar). GPU, CPU, memory, disk, network, input method and the panel contents come from `aero-helper bar-stats` ([`yabai/helper/bar.swift`](yabai/helper/bar.swift)); the top-5 process lists are computed only while a panel is open.
 
-The background is `aero-helper bar-backdrop` ([`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)). Like the real menu bar, it shows the top of the wallpaper heavily blurred and slightly darkened, and windows behind it don't show through. It sits on the regular desktops only, so it slides in and out with them and never covers a native-fullscreen app (videos, slides). A window covering a whole screen without native fullscreen, such as a PowerPoint slideshow, simply covers it.
+The background is `aero-helper bar-backdrop` ([`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)). Like the real menu bar, it shows the top of the wallpaper heavily blurred and slightly darkened. It sits just above the real menu bar and its status icons (level 26), hiding them under the bar; dropdown menus and Control Center still open above it. It sits on the regular desktops only, so it slides in and out with them and never covers a native-fullscreen app (videos, slides). Every 0.2 s it checks whether a window covers a whole screen without native fullscreen, such as a PowerPoint slideshow; if so, the bar (`topmost=off`) and the backdrop drop below windows until it's gone.
 
 SketchyBar's own `blur_radius` has no effect on macOS 15. macOS 15 also hides the Wi-Fi name from apps without Location access, so the network item shows the connection type instead.
 

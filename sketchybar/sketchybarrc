@@ -1,6 +1,7 @@
 #!/bin/bash
-# SketchyBar 顶栏 —— 仿 polybar（fantastic-i3 的 polybar），替代 macOS 菜单栏（菜单栏设为自动隐藏，鼠标移到屏幕顶上才出来）。
-# 想要常显的系统菜单栏、不要这条栏：echo native > ~/.config/fantastic-i3/bar（⌥⇧↩ 临时切换）。
+# SketchyBar 顶栏 —— 仿 polybar（fantastic-i3 的 polybar），盖在常显的系统菜单栏上（菜单栏占着顶上那一截，
+# 窗口和桌面图标都排在它下面；栏藏起来就露出系统菜单栏，⌥⇧↩ 临时切换）。
+# 想默认用系统菜单栏、不要这条栏：echo native > ~/.config/fantastic-i3/bar。
 # 链接到 ~/.config/sketchybar。高 32、One Dark 配色、Maple Mono NF 字体，和 i3 那边一致。
 #
 #   左：苹果菜单（ ）、工作区 1-10 和 Z X C B N M T（名字 + 上面窗口的应用图标；当前的高亮，点一下切过去）、skhd 模式、当前应用和窗口标题
@@ -23,17 +24,16 @@ HELPER="$HOME/.cache/fantastic-i3/aero-helper"
 pkill -f "^$HELPER bar-stats" 2>/dev/null
 pkill -f "^$HELPER bar-backdrop" 2>/dev/null
 
-# topmost=off（默认）：栏在普通窗口下面（层级 -20），和原生的自动隐藏菜单栏一样，浮动窗口放在屏幕顶上时可以盖住它；
-# 平铺的窗口有 yabai external_bar 留出的 24，碰不到它。盖满整块屏的窗口（PowerPoint 放映等）也自然把它盖住。
-# （以前是 topmost=window，栏在普通窗口之上，浮动窗口（闪电说、QQ 音乐、微信、访达……）盖不住它，和原生的不一样。）
-# 高度和系统菜单栏一样（没有刘海的屏幕上是 24）：自动隐藏的菜单栏滑下来时正好盖住这条栏。
-# 改高度时 ../yabai/yabairc 的 external_bar 跟着改。
+# topmost=on：栏在最上面，盖住常显的系统菜单栏（菜单栏层级 24、右边的状态图标 25）。窗口碰不到菜单栏那一截，
+# 所以也碰不到栏。盖满整块屏的窗口（PowerPoint 放映等）出现时，底板（aero-helper bar-backdrop）把栏降成 topmost=off，
+# 让窗口盖住它，窗口没了再升回来。
+# 高度和系统菜单栏一样（没有刘海的屏幕上是 24），正好盖住它。
 # 底色不用 SketchyBar 的 blur_radius（macOS 15 上没效果），而是栏下面垫一条底板（aero-helper bar-backdrop，
 # 在文件末尾启动，高度跟着栏走）：和原生菜单栏一样是壁纸大半径模糊、略微压暗后的样子。栏自己的底色是叠在上面的染色
-sketchybar --bar position=top height=24 color=$BAR_COLOR shadow=off sticky=on topmost=off \
+sketchybar --bar position=top height=24 color=$BAR_COLOR shadow=off sticky=on topmost=on \
     padding_left=8 padding_right=8 display=all font_smoothing=on
-# 开机、重新加载时用哪个顶栏（⌥⇧↩ 临时换的不保留）：~/.config/fantastic-i3/bar 里写 native 就是常显的系统菜单栏、
-# 这条栏藏起来；没有这个文件就是这条栏、系统菜单栏自动隐藏。顺带让 yabai 给栏留 / 不留位置（见 ../yabai/aero bar-apply）
+# 开机、重新加载时用哪个顶栏（⌥⇧↩ 临时换的不保留）：~/.config/fantastic-i3/bar 里写 native 就是系统菜单栏、
+# 这条栏藏起来；没有这个文件就是这条栏。系统菜单栏总是常显（见 ../yabai/aero bar-apply）
 "$AERO" bar-apply
 
 # 图标比文字大一些：和原生菜单栏比过，原生的状态图标高 12–16，Maple Mono NF 18 号的图标高 11–15（15 号时只有 9–12.5）

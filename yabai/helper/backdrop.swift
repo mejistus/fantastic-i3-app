@@ -5,9 +5,10 @@
 // 贴上这样算出来的图（参数和截下来的原生菜单栏逐段比对过）。读不到壁纸（动态壁纸等）时退回系统的磨砂材质。
 // SketchyBar 自己的 blur_radius 用的私有接口在 macOS 15 上对它的窗口不起作用，所以不用它。
 //
-// 窗口层级 -21：SketchyBar 的栏（topmost=off，-20）之下，普通窗口（0）之下——和原生的自动隐藏菜单栏一样，
-// 浮动窗口可以盖住栏；平铺的窗口有 yabai 的 external_bar 留出的那一截，碰不到它。PowerPoint 放映这类盖满整块屏的窗口
-// 自然也把栏和底板一起盖住。不接收鼠标。
+// 系统菜单栏总是常显、占着顶上那一截（窗口和桌面图标都排在它下面，两种模式下布局一样），栏和底板盖在它上面：
+// SketchyBar 的栏 topmost=on 是层级 25，和菜单栏右边的状态图标一样（菜单栏本身 24）。底板也放 25，排在 SketchyBar
+// 整条栏的窗口紧后面：在栏后、状态图标前，挡住原生菜单栏的内容（见 orderBelowBar）。弹出的菜单、控制中心（101）在它们之上。PowerPoint 放映这类盖满整块屏的窗口出现时两者降到它下面，见 checkCovered。
+// 不接收鼠标。
 // 每条只放在自己那块屏的普通桌面上，不放在原生全屏的桌面上（SketchyBar 在那上面也不画栏），见 placeOnDesktops。
 // 每 3 秒问一次 SketchyBar 栏的高度和是否隐藏，顺便看壁纸换没换（切换桌面时也看，每个桌面可以有不同的壁纸）。
 // 问不到时看 SketchyBar 的进程还在不在，不在了才退出：刚启动时它往往还在执行 sketchybarrc，睡眠唤醒后也要重建栏，
@@ -42,6 +43,8 @@ final class BarBackdrop {
     var hidden = false
     var wallpapers = ""   // 各屏的位置、壁纸路径和修改时间；变了就重画
     var generation = 0    // 第几次重画：后台算得慢的旧图不要
+    var lowered = false   // 有窗口盖满了某块屏，栏和底板降到了普通窗口下面（见 checkCovered）
+    var level: NSWindow.Level { NSWindow.Level(rawValue: lowered ? -21 : 25) }   // 降下去时在栏（topmost=off，-20）下面
     var signalSource: DispatchSourceSignal?
 
     func run() {
@@ -56,6 +59,7 @@ final class BarBackdrop {
             self?.checkWallpaper()
         }
         Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.sync() }
+        Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in self?.checkCovered() }.tolerance = 0.05
         // aero toggle-bar（⌥⇧↩）藏起 / 放出栏后发 SIGUSR1：马上跟着藏 / 出来，不等 3 秒一次的检查
         signal(SIGUSR1, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
@@ -84,6 +88,7 @@ final class BarBackdrop {
             if windows.isEmpty { height = 24; rebuild() }   // 先按 24 高建出来
             return
         }
+        if ((bar["topmost"] as? String) == "off") != lowered { setTopmost() }   // SketchyBar 重载过（又成了 on）
         let newHeight = CGFloat((bar["height"] as? NSNumber)?.doubleValue ?? 24)
         let newHidden = (bar["hidden"] as? String) == "on" || (bar["position"] as? String) == "bottom"
         if newHeight != height || windows.isEmpty {
@@ -99,6 +104,7 @@ final class BarBackdrop {
             placeOnDesktops()
             checkWallpaper()
         }
+        orderBelowBar()
     }
 
     func queryBar() -> [String: Any]? {
@@ -140,6 +146,71 @@ final class BarBackdrop {
                   let name = CFUUIDCreateString(nil, uuid) else { return false }
             return CGSSpaceGetType(cid, CGSManagedDisplayGetCurrentSpace(cid, name)) == 4
         })
+    }
+
+    /// PowerPoint 放映（还有不走原生全屏的视频、游戏）是普通桌面上一个层级 0、盖满整块屏的窗口（这时系统菜单栏也藏起来）。
+    /// SketchyBar 只在原生全屏的桌面上藏栏，管不到这种；栏和底板又在所有窗口之上，就压在放映的画面上。
+    /// 这时把两者都降到普通窗口下面，让它盖住：栏 topmost=off（层级 -20），底板 -21。
+    /// 不直接藏：SketchyBar 没法只藏一块屏上的栏，降下去则只有被盖住的屏看不到。
+    /// 每 0.2 秒看一次窗口列表（约 0.5 ms）：放映开始时程序没有切换、桌面也没变，没有通知可等。
+    /// 菜单栏常显时，最大化的窗口盖不到菜单栏那一截，不会算成盖满
+    func checkCovered() {
+        guard coveredByWindow() != lowered else { return }
+        lowered.toggle()
+        for window in windows.values { window.level = level }
+        setTopmost()
+        // 升回来时 SketchyBar 改 topmost 要一会儿：等它的栏回到 25 再排
+        if !lowered { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.orderBelowBar() } }
+    }
+
+    /// 同一层级里谁在前看排序：把每条底板排到那块屏上 SketchyBar 整条栏（和屏一样宽、贴着顶边）的窗口紧后面。
+    /// 栏藏起来（窗口挪到屏外）或降下去时不排
+    func orderBelowBar() {
+        guard !lowered, !hidden else { return }
+        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        for (display, window) in windows {
+            let screen = CGDisplayBounds(display)
+            let bar = info.first { entry in
+                guard entry[kCGWindowOwnerName as String] as? String == "sketchybar",
+                      let dict = entry[kCGWindowBounds as String] as? NSDictionary,
+                      let bounds = CGRect(dictionaryRepresentation: dict as CFDictionary) else { return false }
+                return bounds.minX == screen.minX && bounds.minY == screen.minY && bounds.width == screen.width
+            }
+            if let number = bar?[kCGWindowNumber as String] as? Int { window.order(.below, relativeTo: number) }
+        }
+    }
+
+    func setTopmost() {
+        let value = lowered ? "off" : "on"
+        work.async { [sketchybar] in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: sketchybar)
+            process.arguments = ["--bar", "topmost=\(value)"]
+            try? process.run()
+            process.waitUntilExit()
+        }
+    }
+
+    /// 有没有哪块屏（原生全屏的除外）最上面的普通窗口正好盖满整块屏
+    func coveredByWindow() -> Bool {
+        let skip = fullscreenDisplays()
+        let displays = NSScreen.screens.compactMap(displayID).filter { !skip.contains($0) }.map(CGDisplayBounds)
+        guard !displays.isEmpty else { return false }
+        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        var done = Set<Int>()   // 已经找到最上面那个窗口的屏
+        for window in info {    // 从前往后
+            guard window[kCGWindowLayer as String] as? Int == 0,
+                  (window[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                  let dict = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: dict as CFDictionary),
+                  bounds.width >= 100, bounds.height >= 100 else { continue }   // 不算看不见的小窗口
+            for (i, display) in displays.enumerated() where !done.contains(i) && bounds.intersects(display) {
+                if bounds.contains(display) { return true }
+                done.insert(i)
+            }
+            if done.count == displays.count { break }
+        }
+        return false
     }
 
     /// 每条底板放到自己那块屏的所有普通桌面上，从别的桌面（原生全屏的）上拿掉。
@@ -201,7 +272,7 @@ final class BarBackdrop {
 
     func makeWindow(_ frame: NSRect) -> NSWindow {
         let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
-        window.level = NSWindow.Level(rawValue: -21)
+        window.level = level
         window.alphaValue = hidden ? 0 : 1
         window.isOpaque = false
         window.backgroundColor = .clear

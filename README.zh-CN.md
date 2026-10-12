@@ -21,7 +21,7 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 3. 逐个检查 yabai、skhd、SketchyBar、jq 和字体，没装的装上。
 4. 把配置链接到 `~/.config`，原来的文件会备份。
 5. 关掉"根据最近的使用情况自动重新排列空间"。
-6. 编译 aero-helper（窗口切换器、顶栏数据），启动各项服务。SketchyBar 启动后把系统菜单栏设为自动隐藏，自己顶上。
+6. 编译 aero-helper（窗口切换器、顶栏数据），启动各项服务。系统菜单栏设为常显，SketchyBar 盖在它上面。
 
 然后列出还要手动做的事：
 
@@ -88,7 +88,7 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 
 | 快捷键 | 作用 |
 |---|---|
-| <kbd>⌥⇧↩</kbd> | 在顶栏和常显的系统菜单栏之间临时切换。重新登录或重新加载 SketchyBar 后回到[你选的那个](#顶栏) |
+| <kbd>⌥⇧↩</kbd> | 临时藏起顶栏，露出下面的系统菜单栏（应用的菜单在那里）；再按一次放回来。重新登录或重新加载 SketchyBar 后回到[你选的那个](#顶栏) |
 
 ## 固定工作区
 
@@ -109,7 +109,7 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 
 ## 顶栏
 
-仿照 i3 polybar 样式的 SketchyBar 顶栏（One Dark，Maple Mono NF），和菜单栏一样高（24 pt），一样是毛玻璃。鼠标移到屏幕最上面会出现系统菜单栏。
+仿照 i3 polybar 样式的 SketchyBar 顶栏（One Dark，Maple Mono NF），和菜单栏一样高（24 pt），一样是毛玻璃，盖在常显的系统菜单栏上。菜单栏占着顶上那一截，所以不管顶栏开不开，窗口和桌面图标都排在它下面。要用应用的菜单（文件、编辑……），按 ⌥⇧↩ 把顶栏藏起来。
 
 **左边**
 
@@ -134,16 +134,16 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 | 电池 | 健康度、循环次数、温度 |
 | 时钟 | 农历、周数 |
 
-和系统的自动隐藏菜单栏一样，顶栏在窗口下面：平铺的窗口让开它，浮动的窗口可以盖住它。
+窗口碰不到菜单栏那一截，所以不会盖住顶栏。例外是盖满整块屏的窗口（比如 PowerPoint 放映）：这时顶栏降到它下面，窗口关掉再回来。
 
-更想用系统菜单栏？`echo native > ~/.config/fantastic-i3/bar`，之后开机、重新加载都是常显的系统菜单栏、SketchyBar 关着；⌥⇧↩ 照样临时切换。删掉这个文件就换回来。
+更想用系统菜单栏？`echo native > ~/.config/fantastic-i3/bar`，之后开机、重新加载都不显示 SketchyBar；⌥⇧↩ 照样临时打开。删掉这个文件就换回来。
 
 <details>
 <summary>实现</summary>
 
 配置在 [`sketchybar/`](sketchybar)。GPU、CPU、内存、磁盘、网络、输入法和面板内容来自 `aero-helper bar-stats`（[`yabai/helper/bar.swift`](yabai/helper/bar.swift)）；前 5 个进程只在面板开着时才算。
 
-背景是 `aero-helper bar-backdrop`（[`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)）。和真正的菜单栏一样，它显示壁纸顶部、重度模糊再稍微压暗，后面的窗口透不过来。它只在普通桌面上，所以跟着桌面一起滑动，不会盖住原生全屏的应用（视频、幻灯片）。没有用原生全屏、但铺满整个屏幕的窗口（比如 PowerPoint 放映）会直接盖住它。
+背景是 `aero-helper bar-backdrop`（[`yabai/helper/backdrop.swift`](yabai/helper/backdrop.swift)）。和真正的菜单栏一样，它显示壁纸顶部、重度模糊再稍微压暗。它在真正的菜单栏和状态图标之上（层级 26），把它们挡在顶栏下面；下拉菜单和控制中心照样开在它上面。它只在普通桌面上，所以跟着桌面一起滑动，不会盖住原生全屏的应用（视频、幻灯片）。它每 0.2 秒看一次有没有不走原生全屏、却盖满整块屏的窗口（比如 PowerPoint 放映）；有的话顶栏（`topmost=off`）和底板一起降到窗口下面，等它没了再回来。
 
 SketchyBar 自带的 `blur_radius` 在 macOS 15 上不起作用。macOS 15 还对没有定位权限的应用隐藏 Wi-Fi 名称，所以网络项显示的是连接类型。
 

@@ -11,7 +11,7 @@
 #   aero toggle-float                                        ⌥⇧F：当前窗口在平铺 / 浮动之间切换
 #   aero toggle-space-float                                  service 模式的 f：当前工作区的窗口全部平铺 / 全部浮动
 #   aero ensure-focus                                        切桌面后焦点不在这个桌面的窗口上时补一下（space_changed 信号调）
-#   aero toggle-bar                                          ⌥⇧↩：SketchyBar 和常显的系统菜单栏之间临时切换
+#   aero toggle-bar                                          ⌥⇧↩：临时藏起 / 放出 SketchyBar（下面总是常显的系统菜单栏）
 #   aero bar-apply [sketchybar|native]                       顶栏用哪个；不带参数照 ~/.config/fantastic-i3/bar（sketchybarrc 调）
 #   aero remember-layout                                     ⌃S M：记住当前应用的布局（平铺 / 浮动），以后新开的窗口都这样
 #   aero remember-workspace                                  ⌃S W：记住当前应用的工作区，以后新开的窗口都去那里
@@ -454,24 +454,22 @@ cmd_toggle_space_float() {
 # 底板（aero-helper bar-backdrop）收到 SIGUSR1 马上跟着藏 / 出来。栏藏起来时 yabai 不再给它留位置，
 # 常显的系统菜单栏 yabai 自己会让开（yabairc 里照栏现在的样子设）。SketchyBar 重载后栏总是显示的，
 # sketchybarrc 会把菜单栏改回自动隐藏
-# 顶栏用哪个：sketchybar = SketchyBar 显示、系统菜单栏自动隐藏；native = SketchyBar 藏起、系统菜单栏常显。
-# 不带参数时照 ~/.config/fantastic-i3/bar：里面写 native 就是常显的系统菜单栏，没有这个文件就是 SketchyBar。
+# 顶栏：系统菜单栏总是常显、占着顶上那一截，窗口和桌面图标都排在它下面，所以两种模式下布局完全一样；
+# sketchybar = SketchyBar 的栏（topmost=on）和底板盖在菜单栏上；native = 栏藏起来，露出下面的系统菜单栏（应用的菜单在那里）。
+# 不带参数时照 ~/.config/fantastic-i3/bar：里面写 native 就是系统菜单栏，没有这个文件就是 SketchyBar。
 # sketchybarrc 每次加载（开机、重新加载）都调一次；⌥⇧↩ 只是临时换到另一个
 cmd_bar_apply() {
     command -v sketchybar >/dev/null 2>&1 || return 1
     local which=${1:-$(cat "$MEMORY/bar" 2>/dev/null)} before
+    # 以前 SketchyBar 模式下菜单栏是自动隐藏的：改回常显（只在真的变了时重开访达，见 finder_relaunch）
     before=$(defaults read -g _HIHideMenuBar 2>/dev/null || echo 0)
-    # 先改菜单栏、再改 external_bar：yabai 重新排窗口时照的是改好的菜单栏
+    helper menubar-autohide off
+    [ "$before" = 0 ] || (finder_relaunch >/dev/null 2>&1 &)
+    yabai -m config external_bar all:0:0 2>/dev/null
     if [ "$which" = native ]; then
         sketchybar --bar hidden=on
-        helper menubar-autohide off
-        yabai -m config external_bar all:0:0 2>/dev/null
-        [ "$before" = 0 ] || (finder_relaunch >/dev/null 2>&1 &)
     else
         sketchybar --bar hidden=off
-        helper menubar-autohide on
-        yabai -m config external_bar "all:$(sketchybar --query bar | jq -r .height):0" 2>/dev/null
-        [ "$before" = 1 ] || (finder_relaunch >/dev/null 2>&1 &)
     fi
     pkill -USR1 -f "^$HELPER bar-backdrop"
 }
