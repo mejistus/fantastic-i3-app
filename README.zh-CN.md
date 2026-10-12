@@ -194,4 +194,6 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 
 安装脚本把 [`bin/`](bin) 里的每个命令链接到 `~/.local/bin`，终端里也能直接用（`fantastic-clipboard`、`fantastic-app-launcher --list`），快捷键也是从那里调的。除了上面两个，`bin/` 里还有几个独立的小工具：`center-window`（把最前面的窗口居中，AeroSpace 配置里用）、`freemps`（用 PyTorch 在 MPS 上占用指定大小的显存，默认 8 GB）、`list_brew_packages`（按占用空间列出 Homebrew 装的包）、`nvim-opener.sh`（在 kitty 里用 Neovim 打开文件）。
 
+在 [fantastic-i3](https://github.com/mejistus/fantastic-i3) 里运行时，安装脚本还会把它的 tmux 配置（`../tmux`，Linux 和 macOS 共用）链接到 `~/.config/tmux`。
+
 这里的其它文件夹（`kitty/`、`aerospace/`）是独立的配置，安装脚本不碰它们。Neovim 配置用 [NextVim](https://github.com/mejistus/NextVim)。

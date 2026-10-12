@@ -156,6 +156,13 @@ link "$REPO/skhd" "$HOME/.config/skhd"
 link "$REPO/sketchybar" "$HOME/.config/sketchybar"
 # bin/ 里的命令（fantastic-app-launcher、fantastic-clipboard 等）每个链到 ~/.local/bin：终端里能直接用，快捷键也从这里调
 for tool in "$REPO"/bin/*; do link "$tool" "$HOME/.local/bin/$(basename "$tool")"; done
+# tmux：设置在外层 fantastic-i3 仓库（../tmux，macOS 和 Linux 共用）；在 fantastic-i3 里运行（macos 是它的子模块）时才有
+if [ -f "$REPO/../tmux/tmux.conf" ]; then
+    link "$(cd "$REPO/../tmux" && pwd)" "$HOME/.config/tmux"
+    if [ -e "$HOME/.tmux.conf" ]; then
+        todo+=("~/.tmux.conf 会盖过 ~/.config/tmux/tmux.conf（tmux 只读找到的第一个）：确认不需要后删掉它")
+    fi
+fi
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) todo+=("把 ~/.local/bin 加进 PATH，终端里才能直接用 bin/ 的命令（快捷键不受影响）") ;; esac
 # skhdrc 末尾 .load 这个文件（不进仓库，见 .gitignore）；之后由 aero keys 按 SA 是否加载切换成 sa / native，这里只在没有时先放一个
 [ -e "$REPO/skhd/workspaces.skhdrc" ] || ln -sfn workspaces-native.skhdrc "$REPO/skhd/workspaces.skhdrc"

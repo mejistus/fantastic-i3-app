@@ -194,4 +194,6 @@ Once it's loaded, missing desktops are created automatically. Run `setup-sa` aga
 
 The installer links every command in [`bin/`](bin) into `~/.local/bin`, so they also work from the terminal (`fantastic-clipboard`, `fantastic-app-launcher --list`); the keys call them there. Besides the two above, `bin/` has small standalone tools: `center-window` (centres the front window; the AeroSpace config calls it), `freemps` (allocates a given amount of GPU memory on the MPS device with PyTorch, 8 GB by default), `list_brew_packages` (Homebrew formulae and casks by disk size) and `nvim-opener.sh` (opens a file in Neovim in kitty).
 
+Run from inside [fantastic-i3](https://github.com/mejistus/fantastic-i3), the installer also links its shared tmux config (`../tmux`, used by Linux and macOS alike) to `~/.config/tmux`.
+
 The other folders here (`kitty/`, `aerospace/`) are standalone configs; the installer doesn't touch them. For Neovim use [NextVim](https://github.com/mejistus/NextVim).
