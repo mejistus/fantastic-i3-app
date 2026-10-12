@@ -2,8 +2,8 @@
 # 截图识别，结果放进剪贴板（skhdrc：⌥O / ⌥I，替代 Raycast 里的两个扩展）：
 #   capture text      ⌥O：框选一块屏幕，认出里面的文字（系统自带的 Vision，中英文，不联网）
 #   capture formula   ⌥I：框选一个公式，认出 LaTeX 源码（SiliconFlow 的视觉大模型，和 latex-ocr-queen 一样）
-# 框选时按 Esc 取消。认出来后发一条通知，显示开头一段；失败时通知里写原因。
-# 识别在 aero-helper 里（helper/capture.swift）。
+# 框选时按 Esc 取消。框选完屏幕下方出现一个提示条（helper/toast.swift）：识别时转圈，复制好了换成 ✓ 和结果的开头，
+# 失败时是 ✗ 和原因。识别在 aero-helper 里（helper/capture.swift）。
 #
 # 公式要 SiliconFlow 的 API Key，按顺序找：
 #   1. 环境变量 SILICONFLOW_API_TOKEN / SILICONFLOW_API_KEY（从终端里运行时就有）
@@ -13,7 +13,7 @@
 #      security add-generic-password -U -a "$USER" -s fantastic-i3-siliconflow -w
 
 export PATH=/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin
-export LC_ALL=en_US.UTF-8   # 截取通知里的那段按字符算：按字节截会把汉字切成两半，osascript 就报错，通知出不来
+export LC_ALL=en_US.UTF-8   # 截取提示条里的那段按字符算，不会把汉字切成两半
 AERO="$HOME/.config/yabai/aero"
 STATE="/tmp/yabai-aero-$USER"
 mode=${1:-text}
@@ -33,8 +33,11 @@ siliconflow_key() {
     printf '%s' "$key"
 }
 
-notify() { # <标题> <内容>
-    osascript -e 'on run {t, m}' -e 'display notification m with title t' -e 'end run' "$1" "$2" >/dev/null 2>&1
+toast() { # wait|ok|fail <标题> [详情]：换成一行，太长截掉（提示条在框选完才打开，见下面）
+    local detail=${3:-}
+    detail=${detail%%$'\n'*}
+    detail=${detail//$'\t'/ }
+    printf '%s\t%s\t%s\n' "$1" "$2" "${detail:0:80}" >&3 2>/dev/null
 }
 
 # 正在框选时再按一次不重复开
@@ -44,20 +47,23 @@ mkdir "$lock" 2>/dev/null || exit 0
 image="$STATE/capture-$$.png"
 trap 'rm -f "$image"; rmdir "$lock"' EXIT
 
-"$AERO" log "$title：开始框选"
+"$AERO" log "${title}：开始框选"
 screencapture -i -x "$image"
 if [ ! -s "$image" ]; then   # 按了 Esc
-    "$AERO" log "$title：取消了"
+    "$AERO" log "${title}：取消了"
     exit 0
 fi
+
+# 提示条：一直开着，往里写一行就换一次内容；脚本结束时管道关上，它停一会儿自己淡出
+exec 3> >("$AERO" helper toast)
+toast wait "正在${title#截图}…"
 
 if [ "$mode" = formula ]; then
     key=$(siliconflow_key)
     if [ -z "$key" ]; then
-        notify "$title" "没有 SiliconFlow 的 API Key：在 ~/.zshrc 里 export SILICONFLOW_API_TOKEN=…"
+        toast fail "没有 SiliconFlow 的 API Key" "在 ~/.zshrc 里 export SILICONFLOW_API_TOKEN=…"
         exit 1
     fi
-    notify "$title" "正在识别…"
     result=$(SILICONFLOW_API_KEY="$key" "$AERO" helper formula "$image" 2>"$STATE/capture-$$.err")
 else
     result=$("$AERO" helper ocr "$image" 2>"$STATE/capture-$$.err")
@@ -67,15 +73,15 @@ error=$(cat "$STATE/capture-$$.err" 2>/dev/null)
 rm -f "$STATE/capture-$$.err"
 
 if [ $status -ne 0 ] || [ -z "$result" ]; then
-    notify "$title" "${error:-没认出东西}"
+    toast fail "${title}失败" "${error:-没认出东西}"
     "$AERO" log "$title 失败：${error:-没认出东西}"
     exit 1
 fi
 printf '%s' "$result" | pbcopy
 lines=$(printf '%s\n' "$result" | wc -l | tr -d ' ')
-"$AERO" log "$title：复制了 ${#result} 个字（$lines 行）"   # 只记长度，不记内容
+"$AERO" log "${title}：复制了 ${#result} 个字（$lines 行）"   # 只记长度，不记内容
 if [ "$mode" = formula ]; then
-    notify "已复制 LaTeX" "${result:0:80}"
+    toast ok "已复制 LaTeX" "$result"
 else
-    notify "已复制 $lines 行文字" "${result:0:80}"
+    toast ok "已复制 $lines 行文字" "$result"
 fi

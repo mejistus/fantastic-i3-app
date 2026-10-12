@@ -107,8 +107,10 @@ func recognizeFormula(_ path: String) {
     let dataURL = "data:image/png;base64,\(image.base64EncodedString())"
 
     var errors: [String] = []
-    for model in formulaModels {
-        let body: [String: Any] = [
+    // enable_thinking 只有默认的 32B 认，后面几个收到它会报 "does not support parameter"：那就去掉它再试一次
+    models: for model in formulaModels {
+      attempt: for thinkingFlag in [true, false] {
+        var body: [String: Any] = [
             "model": model,
             "messages": [
                 ["role": "system", "content": formulaSystemPrompt],
@@ -117,8 +119,8 @@ func recognizeFormula(_ path: String) {
             ],
             "temperature": 0,
             "max_tokens": 512,
-            "enable_thinking": false,
         ]
+        if thinkingFlag { body["enable_thinking"] = false }
         var request = URLRequest(url: URL(string: formulaEndpoint)!, timeoutInterval: 90)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -140,8 +142,9 @@ func recognizeFormula(_ path: String) {
             let detail = json?["error"] as? [String: Any] ?? json
             let code = "\(detail?["code"] ?? "")"
             let message = detail?["message"] as? String ?? String(data: result.0 ?? Data(), encoding: .utf8)?.prefix(200).description ?? ""
+            if thinkingFlag && message.contains("enable_thinking") { continue attempt }
             errors.append("\(model)：\(status) \(message)")
-            if code == "30003" || status == 404 { continue }   // 这个模型用不了，换下一个
+            if code == "30003" || status == 404 { continue models }   // 这个模型用不了，换下一个
             fail("SiliconFlow 出错：\(status) \(message)")
         }
         let message = ((json?["choices"] as? [[String: Any]])?.first?["message"] as? [String: Any])?["content"]
@@ -152,6 +155,7 @@ func recognizeFormula(_ path: String) {
         if latex.isEmpty { fail("图里没认出公式") }
         print(latex)
         return
+      }
     }
     fail("模型都不可用：\(errors.joined(separator: "；"))")
 }
