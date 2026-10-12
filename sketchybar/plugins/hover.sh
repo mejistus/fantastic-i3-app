@@ -13,10 +13,12 @@ AERO="$HOME/Documents/fantastic-i3-macOS/yabai/aero"
 POPUPS="gpu cpu mem disk net input volume battery clock"
 ITEM=${NAME%%.*}
 
-case "$SENDER" in   # 标题行的 ↗：鼠标移上去变亮
-    mouse.entered) sketchybar --set "$NAME" background.image="$CONFIG_DIR/icons/open-hover.png"; exit 0 ;;
-    mouse.exited) sketchybar --set "$NAME" background.image="$CONFIG_DIR/icons/open.png"; exit 0 ;;
-    mouse.clicked) ;;
+case "$SENDER:$NAME" in   # 鼠标移上去：标题行的 ↗ 变亮；输入法那几行整行亮起来
+    mouse.entered:input.src.*) sketchybar --set "$NAME" background.drawing=on; exit 0 ;;
+    mouse.exited:input.src.*) sketchybar --set "$NAME" background.drawing=off; exit 0 ;;
+    mouse.entered:*) sketchybar --set "$NAME" background.image="$CONFIG_DIR/icons/open-hover.png"; exit 0 ;;
+    mouse.exited:*) sketchybar --set "$NAME" background.image="$CONFIG_DIR/icons/open.png"; exit 0 ;;
+    mouse.clicked:*) ;;
     *) exit 0 ;;
 esac
 
@@ -44,6 +46,11 @@ case "$NAME" in
         pkill -USR1 -f "^$HELPER bar-stats"
         sketchybar "${args[@]}" --set "$ITEM" popup.drawing=on
         pkill -USR2 -f "^$HELPER bar-backdrop"   # 马上在面板后面垫上材质
+        ;;
+    input.src.*)   # 输入法面板里的一行：切到这个输入法，收起面板（和系统的输入法菜单一样）
+        "$HELPER" input-select "${NAME##*.}"
+        sketchybar --set "$NAME" background.drawing=off
+        close
         ;;
     volume.muted)
         osascript -e 'set volume output muted (not (output muted of (get volume settings)))'

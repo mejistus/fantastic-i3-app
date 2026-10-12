@@ -224,10 +224,14 @@ sketchybar --add item input right \
     --set input icon=󰌌 icon.color=$BAR_YELLOW label=EN script="$PLUGINS/hover.sh"
 popup input
 popup_title input 󰌌 $BAR_YELLOW 输入法
+# 每个输入法一行，点一下切过去（plugins/hover.sh → aero-helper input-select）；鼠标移上去整行亮起来，和原生菜单一样
 for i in 0 1 2 3 4; do
     sketchybar --add item input.src.$i popup.input \
         --set input.src.$i width=$POPUP_WIDTH drawing=off icon.padding_left=14 icon.padding_right=8 \
-            icon.font="$FONT:Bold:14.0" label.font="$POPUP_FONT:Medium:13.0"
+            icon.font="$FONT:Bold:14.0" label.font="$POPUP_FONT:Medium:13.0" \
+            background.drawing=off background.color=0x26ffffff background.corner_radius=6 background.height=24 \
+            background.padding_left=6 background.padding_right=6 script="$PLUGINS/hover.sh" \
+        --subscribe input.src.$i mouse.clicked mouse.entered mouse.exited
 done
 
 # ---- 网速：一项只能有图标、文字两种颜色，箭头要单独上色，所以拆成三块：

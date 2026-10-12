@@ -130,7 +130,8 @@ Click an item on the right for a detail panel; click again or move away to close
 | GPU, CPU | A larger history graph. CPU also lists the top 5 processes |
 | Memory, disk | A usage bar and breakdown. Memory also lists the top 5 processes |
 | Network | IP, router, Wi-Fi signal, rate and channel |
-| Volume | A slider for the current output device, and mute |
+| Input method | Your input sources; click one to switch to it |
+| Volume | A slider for the current output device (the number follows as you drag), and mute |
 | Battery | Health, cycles, temperature |
 | Clock | Lunar date, week number |
 

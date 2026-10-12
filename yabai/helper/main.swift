@@ -9,7 +9,9 @@
 //       打开 / 关闭 macOS 自带的 ⌘⇥ / ⌘⇧⇥ 应用切换器和 Spotlight 的 ⌘Space（关掉后这几个键才能交给 skhd）。
 //       效果持续到重新登录。yabairc 每次启动都关掉它们：⌘⇥ 是窗口列表、⌘Space 是应用列表（window_switcher）。
 //   aero-helper menubar-autohide on|off
-//       系统菜单栏自动隐藏 / 常显（和系统设置里的开关一样，马上生效）。SketchyBar 在时自动隐藏，⌥⇧↩ 关掉它时常显。
+//       系统菜单栏自动隐藏 / 常显（和系统设置里的开关一样，马上生效）。现在总是常显，SketchyBar 盖在它上面（aero bar-apply）。
+//   aero-helper input-select <i>
+//       切到输入法面板第 i 行的输入法（顶栏输入法面板里点一行时调）。
 //   aero-helper switcher [--select 窗口id] [--apps | --launchpad] [--font-size N] [--width 屏幕宽度%] [--rows N]
 //       窗口切换列表。从 stdin 读 TSV：窗口id \t 桌面 \t 应用 \t 标题 \t 状态 \t pid
 //       --apps：列表末尾再加上 Dock 里亮着点、但没有窗口的应用（选中时输出 app:pid:bundle id）。
@@ -780,6 +782,8 @@ case "native-hotkeys":
     setNativeHotkeys(arguments.dropFirst().first == "on")
 case "menubar-autohide":
     setMenuBarAutohide(arguments.dropFirst().first == "on")
+case "input-select":
+    selectInputSource(Int(arguments.dropFirst().first ?? "") ?? -1)
 case "app-names":
     guard let bundle = arguments.dropFirst().first,
           let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else { exit(1) }

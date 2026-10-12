@@ -339,15 +339,29 @@ func outputDevice() -> (name: String, volume: Float?, muted: Bool?)? {
 
 /// 已启用的键盘输入法（名字、是否当前）
 func inputSources() -> [(name: String, current: Bool)] {
-    func string(_ source: TISInputSource, _ key: CFString) -> String {
-        guard let p = TISGetInputSourceProperty(source, key) else { return "" }
-        return Unmanaged<CFString>.fromOpaque(p).takeUnretainedValue() as String
+    let current = inputSourceString(TISCopyCurrentKeyboardInputSource().takeRetainedValue(), kTISPropertyInputSourceID)
+    return selectableInputSources().map {
+        (inputSourceString($0, kTISPropertyLocalizedName), inputSourceString($0, kTISPropertyInputSourceID) == current)
     }
-    let current = string(TISCopyCurrentKeyboardInputSource().takeRetainedValue(), kTISPropertyInputSourceID)
+}
+
+/// 能切换到的键盘输入法，顺序和系统输入法菜单一样；输入法面板的第 i 行就是第 i 个
+func selectableInputSources() -> [TISInputSource] {
     let filter = [kTISPropertyInputSourceIsSelectCapable as String: true,
                   kTISPropertyInputSourceCategory as String: kTISCategoryKeyboardInputSource as String] as CFDictionary
-    let list = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource] ?? []
-    return list.map { (string($0, kTISPropertyLocalizedName), string($0, kTISPropertyInputSourceID) == current) }
+    return TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource] ?? []
+}
+
+func inputSourceString(_ source: TISInputSource, _ key: CFString) -> String {
+    guard let p = TISGetInputSourceProperty(source, key) else { return "" }
+    return Unmanaged<CFString>.fromOpaque(p).takeUnretainedValue() as String
+}
+
+/// aero-helper input-select <i>：切到输入法面板第 i 行的输入法（plugins/hover.sh 点那一行时调）
+func selectInputSource(_ index: Int) {
+    let list = selectableInputSources()
+    guard list.indices.contains(index) else { exit(1) }
+    exit(TISSelectInputSource(list[index]) == noErr ? 0 : 1)
 }
 
 // MARK: - 日期
