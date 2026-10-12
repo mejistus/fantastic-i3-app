@@ -459,18 +459,37 @@ cmd_toggle_space_float() {
 # sketchybarrc 每次加载（开机、重新加载）都调一次；⌥⇧↩ 只是临时换到另一个
 cmd_bar_apply() {
     command -v sketchybar >/dev/null 2>&1 || return 1
-    local which=${1:-$(cat "$MEMORY/bar" 2>/dev/null)}
+    local which=${1:-$(cat "$MEMORY/bar" 2>/dev/null)} before
+    before=$(defaults read -g _HIHideMenuBar 2>/dev/null || echo 0)
     # 先改菜单栏、再改 external_bar：yabai 重新排窗口时照的是改好的菜单栏
     if [ "$which" = native ]; then
         sketchybar --bar hidden=on
         helper menubar-autohide off
         yabai -m config external_bar all:0:0 2>/dev/null
+        [ "$before" = 0 ] || (finder_relaunch >/dev/null 2>&1 &)
     else
         sketchybar --bar hidden=off
         helper menubar-autohide on
         yabai -m config external_bar "all:$(sketchybar --query bar | jq -r .height):0" 2>/dev/null
+        [ "$before" = 1 ] || (finder_relaunch >/dev/null 2>&1 &)
     fi
     pkill -USR1 -f "^$HELPER bar-backdrop"
+}
+
+# 访达不跟着改"自动隐藏菜单栏"：一直用它启动时读到的设置。空桌面上最前面的就是它，那里的菜单栏就照它的来
+# （改成常显后，空桌面上的菜单栏还是收着，鼠标碰到顶才出来），所以设置真的变了就在后台重开它一次，窗口会自己恢复。
+# 它退出的那一下系统会激活别的应用：挂一个 focus-target，follow app / ensure-focus 就不会因此跳到别的桌面
+finder_relaunch() {
+    local finder front=0
+    finder=$(pgrep -x Finder) || return 0
+    [ "$(front_pid)" = "$finder" ] && front=1
+    echo finder-relaunch >"$STATE/focus-target"
+    osascript -e 'tell application "Finder" to quit'
+    for _ in $(seq 30); do pgrep -xq Finder || break; sleep 0.1; done
+    if [ "$front" = 1 ]; then open -a Finder; else open -g -a Finder; fi
+    sleep 1
+    focus_done finder-relaunch
+    log "bar-apply: 菜单栏设置变了，重开访达"
 }
 
 cmd_toggle_bar() {
