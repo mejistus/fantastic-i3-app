@@ -1,12 +1,7 @@
 #!/bin/bash
-# fantastic-i3 —— macOS 上 i3 风格的平铺桌面（yabai + skhd + SketchyBar）：安装、开关、卸载。
+# fantastic-i3 —— macOS 上 i3 风格的平铺桌面（yabai + skhd + SketchyBar）：安装、开关、卸载。用法见 usage。
 #
-#   fantastic-i3 setup                   接好配置、启动服务、检查权限（brew install 之后运行一次；可以重复运行）
-#   fantastic-i3 start | stop | restart  启动 / 停止 / 重启 yabai、skhd、SketchyBar（brew upgrade 之后 restart 一下）
-#   fantastic-i3 status                  桌面快捷键模式、脚本扩展、每个桌面对应的工作区
-#   fantastic-i3 keys                    快捷键表
-#   fantastic-i3 setup-sa                装 yabai 的脚本扩展：瞬间切桌面（要先部分关闭 SIP，见 yabai/setup-sa 开头）
-#   fantastic-i3 uninstall               停掉服务，拿掉 setup 建的链接，系统快捷键改回默认；之后再 brew uninstall fantastic-i3
+# 输出默认英文；系统的首选语言是中文（AppleLanguages 第一个是 zh-*）时用中文。FANTASTIC_I3_LANG=en / zh 可以指定。
 #
 # 用哪一份：setup 把 ~/.config/yabai、~/.config/skhd、~/.config/sketchybar 链到运行它的那一份。
 #   brew 装的：fantastic-i3 setup（链到 $(brew --prefix)/opt/fantastic-i3/libexec，升级后路径不变）
@@ -38,24 +33,73 @@ AERO="$ROOT/yabai/aero"
 CACHE="$HOME/.cache/fantastic-i3"   # aero 编译出来的 aero-helper 和 Wi-Fi、蓝牙面板
 todo=()
 
+case ${FANTASTIC_I3_LANG:-$(defaults read -g AppleLanguages 2>/dev/null | sed -n '2s/[^A-Za-z-]//gp')} in
+    zh*) ZH=1 ;;
+    *) ZH=0 ;;
+esac
+t() { if [ "$ZH" = 1 ]; then echo "$1"; else echo "$2"; fi; }   # <中文> <English>
+
 ok() { echo "✓ $*"; }
 die() { echo "✗ $*" >&2; exit 1; }
 title() { if [ -t 1 ]; then printf '\033[1m%s\033[0m\n' "$*"; else echo "$*"; fi; }
 brew_copy() { case $ROOT in */opt/fantastic-i3/libexec) return 0 ;; *) return 1 ;; esac; }
 
+usage() {
+    if [ "$ZH" = 1 ]; then
+        cat <<'EOF'
+fantastic-i3：macOS 上 i3 风格的平铺桌面（yabai、skhd 和 SketchyBar）
+
+用法：fantastic-i3 <命令>
+
+  setup      接好配置、启动服务、检查权限。brew install 之后运行一次，可以重复运行
+  start      启动 yabai、skhd 和 SketchyBar
+  stop       停止它们
+  restart    重启它们（brew upgrade 之后运行）
+  status     桌面快捷键模式、脚本扩展有没有加载、每个桌面对应的工作区
+  keys       快捷键表
+  setup-sa   装 yabai 的脚本扩展，瞬间切换桌面（要先部分关闭 SIP）
+  uninstall  停掉服务，拿掉 setup 建的链接，系统的切换桌面快捷键改回默认
+
+系统语言是中文时输出中文，否则英文；FANTASTIC_I3_LANG=en 或 zh 可以指定。
+EOF
+    else
+        cat <<'EOF'
+fantastic-i3: an i3-style tiling desktop for macOS (yabai, skhd and SketchyBar)
+
+Usage: fantastic-i3 <command>
+
+  setup      Link the configuration, start the services and check permissions.
+             Run it once after brew install; it is safe to run again.
+  start      Start yabai, skhd and SketchyBar
+  stop       Stop them
+  restart    Restart them (run this after brew upgrade)
+  status     Show the desktop key mode, the scripting addition and the workspace of each desktop
+  keys       Show the key bindings
+  setup-sa   Set up yabai's scripting addition for instant desktop switching
+             (requires System Integrity Protection to be partially disabled)
+  uninstall  Stop the services, remove the links created by setup and restore
+             the default desktop shortcuts
+
+Output is in English unless the system language is Chinese.
+Set FANTASTIC_I3_LANG=en or FANTASTIC_I3_LANG=zh to choose.
+EOF
+    fi
+}
+
 # 快捷键表（键那一列只用单宽字符，汉字放在行尾，终端里才对得齐）
 keys() {
     echo
-    title "════════ 快捷键 ════════  第一次用建议截图保存：⌘⇧4，按空格，再点这个窗口"
-    title "工作区（顶栏左边是工作区和上面的应用，点一下也能切）"
-    cat <<'EOF'
+    if [ "$ZH" = 1 ]; then
+        title "════════ 快捷键 ════════  第一次用建议截图保存：⌘⇧4，按空格，再点这个窗口"
+        title "工作区（顶栏左边是工作区和上面的应用，点一下也能切）"
+        cat <<'EOF'
   ⌥1 … ⌥9 ⌥0              切到工作区 1 … 10（⌥ + Caps Lock 也是 10）
   ⌥Z ⌥X ⌥C ⌥B ⌥N ⌥M ⌥T    切到工作区 Z X C B N M T（⌥T 要脚本扩展）
   ⌥⇧1 … ⌥⇧0, ⌥⇧Z … ⌥⇧T    把当前窗口移到那个工作区，人也跟过去
   ⌃H / ⌃L                 上一个 / 下一个工作区
 EOF
-    title "窗口"
-    cat <<'EOF'
+        title "窗口"
+        cat <<'EOF'
   ⌥H/J/K/L, ⌥←↓↑→        焦点移到左 / 下 / 上 / 右边的窗口
   ⌥⇧H/J/K/L, ⌥⇧←↓↑→      和那边的窗口交换位置
   ⌥F                      全屏 / 还原
@@ -63,8 +107,8 @@ EOF
   ⌥- / ⌥=                 缩小 / 放大
   ⌥R                      调大小模式：H J K L 或方向键调宽高，Esc 退出
 EOF
-    title "切换和打开"
-    cat <<'EOF'
+        title "切换和打开"
+        cat <<'EOF'
   ⌥⇥                      点一下回到上一个应用，按住 ⌥ 列出所有应用
   ⌘⇥                      点一下回到上一个窗口，按住 ⌘ 列出所有窗口；列表里直接打字搜索，中文用拼音
   ⌘Space                  应用列表（代替 Spotlight），打字搜索，回车打开
@@ -73,26 +117,69 @@ EOF
   ⌥⇧V                     剪贴板历史：打字搜索，回车粘贴
   ⌥O / ⌥I                 截图识字 / 截图识公式（LaTeX），结果复制到剪贴板
 EOF
-    title "⌃S 服务模式：先按 ⌃S，松开再按下面的键"
-    cat <<'EOF'
+        title "⌃S 服务模式：先按 ⌃S，松开再按下面的键"
+        cat <<'EOF'
   ⌃S M                    记住当前应用平铺还是浮动，以后新开的窗口照办
   ⌃S W                    记住当前应用在哪个工作区，以后新开的窗口去那里
   ⌃S F                    当前工作区的窗口全部平铺 ↔ 全部浮动
   ⌃S Esc                  重新加载配置
 EOF
-    title "其它"
-    cat <<'EOF'
+        title "其它"
+        cat <<'EOF'
   ⌥⇧↩                     临时藏起 SketchyBar，露出下面的系统菜单栏（应用的菜单）
   ⌥⇧⇥                     把当前工作区挪到下一个显示器（要脚本扩展）
 EOF
-    echo "应用的菜单（文件、编辑……）在 SketchyBar 下面的系统菜单栏里：鼠标顶到屏幕最上边停一下就露出来（⌥⇧↩ 一直藏着）。脚本扩展见 fantastic-i3 setup-sa（没有它切工作区有滑动动画）"
-    echo "再看这张表：fantastic-i3 keys"
+        echo "应用的菜单（文件、编辑……）在 SketchyBar 下面的系统菜单栏里：鼠标顶到屏幕最上边停一下就露出来（⌥⇧↩ 一直藏着）。脚本扩展见 fantastic-i3 setup-sa（没有它切工作区有滑动动画）"
+        echo "再看这张表：fantastic-i3 keys"
+    else
+        title "════════ Key bindings ════════  Consider a screenshot: press ⌘⇧4, then Space, then click this window"
+        title "Workspaces (shown on the left of the top bar with their apps; click one to switch)"
+        cat <<'EOF'
+  ⌥1 … ⌥9 ⌥0              Switch to workspace 1 … 10 (⌥ + Caps Lock also switches to 10)
+  ⌥Z ⌥X ⌥C ⌥B ⌥N ⌥M ⌥T    Switch to workspace Z X C B N M T (⌥T requires the scripting addition)
+  ⌥⇧1 … ⌥⇧0, ⌥⇧Z … ⌥⇧T    Move the focused window to that workspace and follow it
+  ⌃H / ⌃L                 Previous / next workspace
+EOF
+        title "Windows"
+        cat <<'EOF'
+  ⌥H/J/K/L, ⌥←↓↑→        Focus the window to the left / below / above / right
+  ⌥⇧H/J/K/L, ⌥⇧←↓↑→      Swap with the window in that direction
+  ⌥F                      Toggle fullscreen
+  ⌥⇧F                     Toggle tiling / floating
+  ⌥- / ⌥=                 Shrink / grow
+  ⌥R                      Resize mode: H J K L or the arrow keys; Esc to exit
+EOF
+        title "Switching and opening"
+        cat <<'EOF'
+  ⌥⇥                      Tap for the previous app; hold ⌥ to list all apps
+  ⌘⇥                      Tap for the previous window; hold ⌘ to list all windows. Type to search
+  ⌘Space                  App list (replaces Spotlight): type to search, Return to open
+  ⌥D / ⌥⇧D                Finder on this workspace / a new Finder window showing Documents
+  ⌥G                      The browser on workspace 1
+  ⌥⇧V                     Clipboard history: type to search, Return to paste
+  ⌥O / ⌥I                 Capture an area and copy its text / its formula as LaTeX
+EOF
+        title "⌃S service mode: press ⌃S, release it, then press"
+        cat <<'EOF'
+  ⌃S M                    Remember whether the current app tiles or floats
+  ⌃S W                    Remember the current app's workspace for its new windows
+  ⌃S F                    Tile or float every window on this workspace
+  ⌃S Esc                  Reload the configuration
+EOF
+        title "Other"
+        cat <<'EOF'
+  ⌥⇧↩                     Hide SketchyBar to reveal the macOS menu bar with the app menus
+  ⌥⇧⇥                     Move this workspace to the next display (requires the scripting addition)
+EOF
+        echo "App menus (File, Edit and so on) are in the macOS menu bar beneath SketchyBar: rest the pointer at the top edge of the screen to reveal it, or press ⌥⇧↩ to keep it shown. Without the scripting addition (fantastic-i3 setup-sa), workspaces switch with the macOS slide animation."
+        echo "To show this list again: fantastic-i3 keys"
+    fi
 }
 
 need() { # <formula|cask> <brew 里的名字>
     local name=${2##*/}
     if ! brew list "--$1" "$name" >/dev/null 2>&1; then
-        echo "→ 安装 $name"
+        echo "→ $(t "安装" "Installing") $name"
         brew install "--$1" "$2"
     fi
     ok "$(brew list "--$1" --versions "$name")"
@@ -115,8 +202,10 @@ link() { # <这一份里的文件夹或文件> <链接位置>
         elif [ -f "$dst" ] && [ ! -L "$dst" ] && cmp -s "$dst" "$src"; then
             rm "$dst"   # 以前拷过去的同一个文件
         elif [ -e "$dst" ] || [ -L "$dst" ]; then
-            mv "$dst" "$dst.bak-$(date +%Y%m%d-%H%M%S)"   # 以前的文件夹（里面是单个文件的链接或你自己的配置）
-            echo "  原来的 $dst 已备份"
+            local backup
+            backup="$dst.bak-$(date +%Y%m%d-%H%M%S)"
+            mv "$dst" "$backup"   # 以前的文件夹（里面是单个文件的链接或你自己的配置）
+            echo "  $(t "原来的 $dst 已备份成 $backup" "Backed up the existing $dst to $backup")"
         fi
         ln -s "$src" "$dst"
     fi
@@ -126,24 +215,25 @@ link() { # <这一份里的文件夹或文件> <链接位置>
 # brew 装 SketchyBar 时提示"把示例配置复制到 ~/.config/sketchybar"。那里链到这一份的 sketchybar 文件夹，照做就把顶栏配置覆盖了
 check_bar_config() {
     cmp -s "$ROOT/sketchybar/sketchybarrc" /opt/homebrew/opt/sketchybar/share/sketchybar/examples/sketchybarrc || return 0
-    if brew_copy; then
-        die "顶栏配置被 SketchyBar 的示例覆盖了（brew 提示的复制命令不要照做）。恢复：brew reinstall fantastic-i3，再运行 fantastic-i3 restart"
-    else
-        die "顶栏配置被 SketchyBar 的示例覆盖了（brew 提示的复制命令不要照做）。恢复：git -C $ROOT checkout -- sketchybar，再运行 fantastic-i3 restart"
-    fi
+    local restore
+    if brew_copy; then restore="brew reinstall fantastic-i3"; else restore="git -C $ROOT checkout -- sketchybar"; fi
+    die "$(t "顶栏配置被 SketchyBar 的示例覆盖了（brew 提示的复制命令不要照做）。恢复：$restore，再运行 fantastic-i3 restart" \
+        "The bar configuration was overwritten by SketchyBar's example configuration. Restore it with: $restore, then run fantastic-i3 restart")"
 }
 
 cmd_setup() {
     # ---- 1. 前提 ----
-    [ "$(uname -s)" = Darwin ] || die "只支持 macOS"
-    [ "$(uname -m)" = arm64 ] || die "只支持 Apple Silicon"
-    [ -x /opt/homebrew/bin/brew ] || die "需要 Homebrew（https://brew.sh），装好后：brew install mejistus/mona/fantastic-i3"
+    [ "$(uname -s)" = Darwin ] || die "$(t "只支持 macOS" "fantastic-i3 requires macOS.")"
+    [ "$(uname -m)" = arm64 ] || die "$(t "只支持 Apple Silicon" "fantastic-i3 requires a Mac with Apple silicon.")"
+    [ -x /opt/homebrew/bin/brew ] || die "$(t "需要 Homebrew（https://brew.sh），装好后：brew install mejistus/mona/fantastic-i3" \
+        "Homebrew is required (https://brew.sh). Then run: brew install mejistus/mona/fantastic-i3")"
     if ! xcode-select -p >/dev/null 2>&1; then
         xcode-select --install >/dev/null 2>&1 || true
-        die "需要 Xcode 命令行工具：在弹出的窗口里安装，装好后再运行一次 fantastic-i3 setup"
+        die "$(t "需要 Xcode 命令行工具：在弹出的窗口里安装，装好后再运行一次 fantastic-i3 setup" \
+            "The Xcode Command Line Tools are required. Install them from the dialog that just opened, then run fantastic-i3 setup again.")"
     fi
-    ok "Apple Silicon、Homebrew、Xcode 命令行工具"
-    ok "用这一份：$ROOT"
+    ok "$(t "Apple Silicon、Homebrew、Xcode 命令行工具" "Apple silicon, Homebrew and the Xcode Command Line Tools")"
+    ok "$(t "用这一份：$ROOT" "Using the copy at $ROOT")"
 
     # ---- 2. 软件 ----
     need formula asmvik/formulae/yabai
@@ -163,7 +253,11 @@ cmd_setup() {
     local tool
     for tool in "$ROOT"/bin/*; do link "$tool" "$HOME/.local/bin/$(basename "$tool")"; done
     if ! brew_copy; then   # brew 装的命令已经在 brew 的 bin 里
-        case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) todo+=("把 ~/.local/bin 加进 PATH，终端里才能直接用 bin/ 的命令（快捷键不受影响）") ;; esac
+        case ":$PATH:" in
+            *":$HOME/.local/bin:"*) ;;
+            *) todo+=("$(t "把 ~/.local/bin 加进 PATH，终端里才能直接用 bin/ 的命令（快捷键不受影响）" \
+                "Add ~/.local/bin to your PATH to run the commands in bin/ from a terminal (the key bindings work either way).")") ;;
+        esac
     fi
     # skhdrc 末尾 .load 这个文件（不进仓库，见 .gitignore）；之后由 aero keys 按 SA 是否加载切换成 sa / native，这里只在没有时先放一个
     [ -e "$ROOT/skhd/workspaces.skhdrc" ] || ln -sfn workspaces-native.skhdrc "$ROOT/skhd/workspaces.skhdrc"
@@ -173,21 +267,25 @@ cmd_setup() {
         defaults write com.apple.dock mru-spaces -bool false
         killall Dock
     fi
-    ok "调度中心：不按最近使用情况重新排列空间"
+    ok "$(t "调度中心：不按最近使用情况重新排列空间" "Mission Control: Spaces are no longer rearranged by recent use")"
     if [ "$(defaults read com.apple.spaces spans-displays 2>/dev/null)" = 1 ]; then
-        todo+=("系统设置 → 桌面与程序坞 → 打开\"显示器具有单独的空间\"，然后注销重新登录（yabai 需要）")
+        todo+=("$(t "系统设置 → 桌面与程序坞 → 打开\"显示器具有单独的空间\"，然后注销重新登录（yabai 需要）" \
+            "Turn on System Settings → Desktop & Dock → \"Displays have separate Spaces\", then log out and back in (yabai requires it).")")
     fi
 
     # ---- 5. aero-helper ----
     "$AERO" helper >/dev/null 2>&1 || true    # 不带参数：需要时编译，然后只打印用法
     [ -x "$CACHE/aero-helper" ] ||
-        die "aero-helper 编译失败：swiftc -O -o ~/.cache/fantastic-i3/aero-helper $ROOT/yabai/helper/*.swift"
+        die "$(t "aero-helper 编译失败" "Failed to build aero-helper"): swiftc -O -o ~/.cache/fantastic-i3/aero-helper $ROOT/yabai/helper/*.swift"
     ok "aero-helper"
 
     # ---- 6. 服务和权限 ----
     local app
     for app in AeroSpace AltTab; do
-        if pgrep -xq "$app"; then todo+=("退出 $app 并关掉它的开机启动（会和 yabai / ⌥⇥ 冲突）"); fi
+        if pgrep -xq "$app"; then
+            todo+=("$(t "退出 $app 并关掉它的开机启动（会和 yabai / ⌥⇥ 冲突）" \
+                "Quit $app and turn off its launch at login; it conflicts with yabai and ⌥⇥.")")
+        fi
     done
     pgrep -xq yabai || yabai --start-service
     pgrep -xq skhd || skhd --start-service
@@ -206,18 +304,20 @@ cmd_setup() {
     sleep 2
     [ -n "$skhd_pid" ] && [ "$(pgrep -x skhd || true)" = "$skhd_pid" ] && skhd_ok=1   # 没有权限时 skhd 会退出、被 launchd 重启
     if [ "$yabai_ok$skhd_ok" = 11 ]; then
-        ok "yabai、skhd 在运行，有辅助功能权限"
+        ok "$(t "yabai、skhd 在运行，有辅助功能权限" "yabai and skhd are running with Accessibility access")"
         "$AERO" keys auto --force   # 系统的切桌面快捷键照现在的模式重写一遍（第一次装、uninstall 后再装时还没写过）
         "$AERO" bar-apply           # yabai 先于 SketchyBar 启动时，给顶栏留的位置还没设
         "$AERO" reload
         if [ "$(cat "$HOME/.config/fantastic-i3/bar" 2>/dev/null)" = native ]; then
-            ok "顶栏：系统菜单栏，SketchyBar 关着（⌥⇧↩ 临时打开；~/.config/fantastic-i3/bar 里写的 native）"
+            ok "$(t "顶栏：系统菜单栏，SketchyBar 关着（⌥⇧↩ 临时打开；~/.config/fantastic-i3/bar 里写的 native）" \
+                "Top bar: the macOS menu bar; SketchyBar is off (⌥⇧↩ shows it; set by ~/.config/fantastic-i3/bar)")"
         else
-            ok "顶栏：SketchyBar，盖在常显的系统菜单栏上"
+            ok "$(t "顶栏：SketchyBar，盖在常显的系统菜单栏上" "Top bar: SketchyBar, drawn over the always-visible macOS menu bar")"
         fi
     else
         open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-        todo+=("系统设置 → 隐私与安全性 → 辅助功能：打开 yabai 和 skhd（没有就点 + 从 /opt/homebrew/bin 添加），然后再运行一次 fantastic-i3 setup")
+        todo+=("$(t "系统设置 → 隐私与安全性 → 辅助功能：打开 yabai 和 skhd（没有就点 + 从 /opt/homebrew/bin 添加），然后再运行一次 fantastic-i3 setup" \
+            "In System Settings → Privacy & Security → Accessibility, turn on yabai and skhd (if they are missing, click + and add them from /opt/homebrew/bin), then run fantastic-i3 setup again.")")
     fi
 
     # ---- 7. 桌面 ----
@@ -225,22 +325,24 @@ cmd_setup() {
         local have
         have=$(yabai -m query --spaces | jq '[.[] | select(."is-native-fullscreen" | not)] | length')
         if [ "$have" -ge 17 ]; then
-            ok "桌面：$have 个"
+            ok "$(t "桌面：$have 个" "Desktops: $have")"
         else
-            todo+=("调度中心里把桌面加到 17 个（现在 $have 个）；或者运行 fantastic-i3 setup-sa，加载 SA 后会自动补齐")
+            todo+=("$(t "调度中心里把桌面加到 17 个（现在 $have 个）；或者运行 fantastic-i3 setup-sa，加载 SA 后会自动补齐" \
+                "Add desktops in Mission Control until there are 17 (there are $have now), or run fantastic-i3 setup-sa, which creates them automatically.")")
         fi
     fi
 
+    echo
     if [ ${#todo[@]} -gt 0 ]; then
-        echo
-        title "还需要手动做："
+        title "$(t "还需要手动做：" "Remaining steps:")"
         printf '  - %s\n' "${todo[@]}"
     else
-        echo
-        ok "全部完成。出问题时运行 fantastic-i3 status 看看"
+        ok "$(t "全部完成。出问题时运行 fantastic-i3 status 看看" "Setup is complete. If something goes wrong, run fantastic-i3 status.")"
     fi
     keys
-    [ ${#todo[@]} -eq 0 ] || echo "↑ 别忘了快捷键表上面那 ${#todo[@]} 件要手动做的事"
+    if [ ${#todo[@]} -gt 0 ]; then
+        echo "$(t "↑ 别忘了快捷键表上面那 ${#todo[@]} 件要手动做的事" "↑ Don't forget the ${#todo[@]} remaining step(s) listed above the key bindings.")"
+    fi
 }
 
 cmd_start() {
@@ -248,7 +350,7 @@ cmd_start() {
     pgrep -xq yabai || yabai --start-service
     pgrep -xq skhd || skhd --start-service
     pgrep -xq sketchybar || brew services start sketchybar >/dev/null
-    ok "yabai、skhd、SketchyBar 已启动"
+    ok "$(t "yabai、skhd、SketchyBar 已启动" "Started yabai, skhd and SketchyBar")"
 }
 
 cmd_stop() {
@@ -258,7 +360,7 @@ cmd_stop() {
     yabai --stop-service >/dev/null 2>&1 || true
     pkill -f "^$CACHE/" 2>/dev/null || true   # aero-helper 的常驻进程（顶栏底板、剪贴板记录……）和 Wi-Fi、蓝牙面板
     [ -x "$CACHE/aero-helper" ] && "$CACHE/aero-helper" native-hotkeys on   # macOS 自带的 ⌘⇥ 和 Spotlight 的 ⌘Space
-    ok "yabai、skhd、SketchyBar 已停止（fantastic-i3 start 再启动）"
+    ok "$(t "yabai、skhd、SketchyBar 已停止（fantastic-i3 start 再启动）" "Stopped yabai, skhd and SketchyBar (run fantastic-i3 start to start them again)")"
 }
 
 cmd_restart() {
@@ -266,7 +368,7 @@ cmd_restart() {
     yabai --restart-service
     skhd --restart-service
     brew services restart sketchybar >/dev/null
-    ok "yabai、skhd、SketchyBar 已重启"
+    ok "$(t "yabai、skhd、SketchyBar 已重启" "Restarted yabai, skhd and SketchyBar")"
 }
 
 # 系统快捷键里 aero keys 改过的几项（切换到桌面 1-16、向左 / 右移动一个桌面）删掉，macOS 就用回它的默认
@@ -287,24 +389,29 @@ cmd_uninstall() {
     yabai --uninstall-service >/dev/null 2>&1 || true
     skhd --uninstall-service >/dev/null 2>&1 || true
     restore_hotkeys
-    ok "系统的切换桌面快捷键改回默认"
+    ok "$(t "系统的切换桌面快捷键改回默认" "Restored the default macOS desktop shortcuts")"
     local dst
     for dst in "$HOME/.config/yabai" "$HOME/.config/skhd" "$HOME/.config/sketchybar" "$HOME"/.local/bin/*; do
         [ -L "$dst" ] || continue
         case $(readlink "$dst") in
-            "$ROOT"/*) rm "$dst"; ok "删掉链接 $dst" ;;
+            "$ROOT"/*) rm "$dst"; ok "$(t "删掉链接 $dst" "Removed the link $dst")" ;;
         esac
     done
     rm -rf "$CACHE"
     echo
-    title "没动的："
-    echo "  - ~/.config/fantastic-i3：记住的布局和工作区、剪贴板历史。不要了就删掉"
-    ls -d "$HOME"/.config/{yabai,skhd,sketchybar}.bak-* 2>/dev/null | sed 's/^/  - setup 之前的配置（备份）：/' || true
+    title "$(t "没动的：" "Left in place:")"
+    echo "  - $(t "~/.config/fantastic-i3：记住的布局和工作区、剪贴板历史。不要了就删掉" \
+        "~/.config/fantastic-i3: remembered layouts and workspaces, and the clipboard history. Delete it if you no longer need it.")"
+    local backup
+    for backup in "$HOME"/.config/{yabai,skhd,sketchybar}.bak-*; do
+        [ -e "$backup" ] && echo "  - $(t "setup 之前的配置（备份）：$backup" "Your configuration from before setup (backup): $backup")"
+    done
     if [ -e /private/etc/sudoers.d/yabai ]; then
-        echo "  - 脚本扩展：sudo yabai --uninstall-sa; sudo rm /private/etc/sudoers.d/yabai"
+        echo "  - $(t "脚本扩展" "Scripting addition"): sudo yabai --uninstall-sa; sudo rm /private/etc/sudoers.d/yabai"
     fi
     echo
-    echo "最后：brew uninstall fantastic-i3（yabai、skhd、SketchyBar 和两个字体不要了也一起 brew uninstall）"
+    echo "$(t "最后：brew uninstall fantastic-i3（yabai、skhd、SketchyBar 和两个字体不要了也一起 brew uninstall）" \
+        "Finally, run brew uninstall fantastic-i3. yabai, skhd, SketchyBar and the two fonts can be removed with brew uninstall as well.")"
 }
 
 case ${1:-} in
@@ -316,5 +423,5 @@ case ${1:-} in
     keys) keys ;;
     setup-sa) shift; exec "$ROOT/yabai/setup-sa" "$@" ;;
     uninstall) cmd_uninstall ;;
-    *) awk 'NR > 1 && /^#$/ && ++blank == 2 { exit } NR > 1 { sub(/^# ?/, ""); print }' "$0"; exit 1 ;;
+    *) usage; exit 1 ;;
 esac

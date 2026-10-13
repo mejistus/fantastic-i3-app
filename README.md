@@ -1,6 +1,6 @@
 # fantastic-i3-app
 
-[中文](README.zh-CN.md) · Part of [fantastic-i3](https://github.com/mejistus/fantastic-i3), my i3 setup for Linux
+[中文](README.zh-CN.md) · Companion to [fantastic-i3](https://github.com/mejistus/fantastic-i3), an i3 setup for Linux
 
 An i3-style tiling setup for macOS. [yabai](https://github.com/asmvik/yabai) tiles windows, [skhd](https://github.com/asmvik/skhd) handles the keys and [SketchyBar](https://github.com/FelixKratz/SketchyBar) replaces the menu bar. There are 17 workspaces, 1 … 10 and Z X C B N M T, one per macOS desktop.
 
@@ -37,6 +37,8 @@ The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantast
 | `fantastic-i3 status` | Key mode, whether the [scripting addition](#instant-switching) is loaded, and the workspace of every desktop |
 | `fantastic-i3 setup-sa` | Sets up the [scripting addition](#instant-switching) |
 | `fantastic-i3 uninstall` | Stops the services, removes the links setup made and resets the desktop-switching shortcuts; then `brew uninstall fantastic-i3` |
+
+The commands print English, or Chinese when the system language is Chinese; set `FANTASTIC_I3_LANG=en` or `FANTASTIC_I3_LANG=zh` to choose.
 
 To work on the code, clone this repo and run `<clone>/bin/fantastic-i3 setup`: `~/.config` then points at your clone, so changes apply right away (⌃S Esc reloads). To go back to the Homebrew copy, run `$(brew --prefix)/bin/fantastic-i3 setup`.
 

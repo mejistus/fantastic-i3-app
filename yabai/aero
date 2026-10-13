@@ -903,16 +903,23 @@ cmd_spaces() {
     return 0
 }
 
-cmd_status() {
-    echo "桌面快捷键模式: $(keys_mode)   (sa = yabai 切换 / native = macOS 自带快捷键)"
-    if sudo -n /opt/homebrew/bin/yabai --load-sa >/dev/null 2>&1; then
-        echo "脚本扩展 SA: 已加载"
+cmd_status() { # fantastic-i3 status。系统语言是中文时用中文，否则英文（FANTASTIC_I3_LANG=en / zh 可以指定）
+    local zh=0 sa
+    case ${FANTASTIC_I3_LANG:-$(defaults read -g AppleLanguages 2>/dev/null | sed -n '2s/[^A-Za-z-]//gp')} in zh*) zh=1 ;; esac
+    if [ "$zh" = 1 ]; then
+        echo "桌面快捷键模式: $(keys_mode)   (sa = yabai 切换 / native = macOS 自带快捷键)"
+        if sudo -n /opt/homebrew/bin/yabai --load-sa >/dev/null 2>&1; then sa="已加载"; else sa="未加载（运行 fantastic-i3 setup-sa）"; fi
+        echo "脚本扩展 SA: $sa"
     else
-        echo "脚本扩展 SA: 未加载（运行 fantastic-i3 setup-sa）"
+        echo "Desktop key mode: $(keys_mode)   (sa = switched by yabai / native = macOS shortcuts)"
+        if sudo -n /opt/homebrew/bin/yabai --load-sa >/dev/null 2>&1; then sa="loaded"; else sa="not loaded (run fantastic-i3 setup-sa)"; fi
+        echo "Scripting addition: $sa"
     fi
     echo "boot-args: $(nvram boot-args 2>/dev/null | cut -f2-)"
-    yabai -m query --spaces | jq -r --argjson ws "$(printf '%s\n' "${WORKSPACES[@]}" | jq -R . | jq -s .)" '.[]
-        | "  桌面 \(.index)\t工作区 \($ws[.index - 1] // "-")\t标签 \(if .label == "" then "-" else .label end)\t窗口 \(.windows | length)\(if ."has-focus" then "\t← 当前" else "" end)"'
+    yabai -m query --spaces | jq -r --argjson ws "$(printf '%s\n' "${WORKSPACES[@]}" | jq -R . | jq -s .)" --argjson zh "$zh" '
+        (if $zh == 1 then ["桌面", "工作区", "标签", "窗口", "← 当前"] else ["Desktop", "workspace", "label", "windows", "← current"] end) as $w
+        | .[]
+        | "  \($w[0]) \(.index)\t\($w[1]) \($ws[.index - 1] // "-")\t\($w[2]) \(if .label == "" then "-" else .label end)\t\($w[3]) \(.windows | length)\(if ."has-focus" then "\t" + $w[4] else "" end)"'
 }
 
 case ${1:-} in

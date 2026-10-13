@@ -38,6 +38,8 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | `fantastic-i3 setup-sa` | 装[脚本扩展](#瞬间切换) |
 | `fantastic-i3 uninstall` | 停掉服务，拿掉 setup 建的链接，系统的切换桌面快捷键改回默认；之后再 `brew uninstall fantastic-i3` |
 
+命令的输出默认是英文，系统语言是中文时是中文；`FANTASTIC_I3_LANG=en` 或 `FANTASTIC_I3_LANG=zh` 可以指定。
+
 改代码：克隆这个仓库，运行 `<仓库>/bin/fantastic-i3 setup`，`~/.config` 就链到你的克隆，改了立刻生效（⌃S Esc 重新加载）。换回 brew 装的那份：`$(brew --prefix)/bin/fantastic-i3 setup`。
 
 ## 快捷键
