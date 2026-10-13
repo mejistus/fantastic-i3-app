@@ -3,8 +3,8 @@
 //   aero-helper step left|right
 //       模拟按 ⌃⌥← / ⌃⌥→（macOS "向左/右移动一个桌面"）。只补按用户没按着的修饰键，
 //       也只松开自己按下的，所以按住 ⌃ 连按 H 也能连续切换。
-//   aero-helper wait-release <shift,option,...> <秒>
-//       等这些修饰键全部松开；超时仍按着则退出码为 1。
+//   aero-helper wait-release <shift,option,...> <秒> [--print]
+//       等这些修饰键全部松开；超时仍按着则退出码为 1。秒数从按下快捷键时算起；--print 输出按了几秒。
 //   aero-helper native-hotkeys on|off
 //       打开 / 关闭 macOS 自带的 ⌘⇥ / ⌘⇧⇥ 应用切换器和 Spotlight 的 ⌘Space（关掉后这几个键才能交给 skhd）。
 //       效果持续到重新登录。yabairc 每次启动都关掉它们：⌘⇥ 是窗口切换、⌘Space 是应用列表（fantastic-app-launcher）。
@@ -77,11 +77,15 @@ func modifierMask(_ names: String) -> CGEventFlags {
     return mask
 }
 
-func waitRelease(_ mask: CGEventFlags, timeout: Double) -> Bool {
-    let deadline = Date().addingTimeInterval(timeout)
+/// 等修饰键松开，超时仍按着就返回 false。时间从最近一次按键（触发快捷键的那个键）算起，不从这里开始运行算起：
+/// skhd 启动到这里要几十毫秒，负载高时更久。最近一次按键已经是一秒前（比如从终端里调）就从现在算。held = 按了多久
+func waitRelease(_ mask: CGEventFlags, timeout: Double) -> (released: Bool, held: Double) {
+    let since = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .keyDown)
+    let start = Date().addingTimeInterval(since < 1 ? -since : 0)
     while true {
-        if CGEventSource.flagsState(.combinedSessionState).intersection(mask).isEmpty { return true }
-        if Date() >= deadline { return false }
+        let held = Date().timeIntervalSince(start)
+        if CGEventSource.flagsState(.combinedSessionState).intersection(mask).isEmpty { return (true, held) }
+        if held >= timeout { return (false, held) }
         usleep(5_000)
     }
 }
@@ -783,7 +787,9 @@ case "wait-release":
     let rest = Array(arguments.dropFirst())
     let mask = modifierMask(rest.first ?? "shift,option")
     let timeout = rest.count > 1 ? Double(rest[1]) ?? 1 : 1
-    exit(waitRelease(mask, timeout: timeout) ? 0 : 1)
+    let result = waitRelease(mask, timeout: timeout)
+    if rest.contains("--print") { print(String(format: "%.2f", result.held)) }
+    exit(result.released ? 0 : 1)
 case "native-hotkeys":
     setNativeHotkeys(arguments.dropFirst().first == "on")
 case "menubar-autohide":
