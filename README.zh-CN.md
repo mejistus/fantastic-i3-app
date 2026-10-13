@@ -1,4 +1,4 @@
-# fantastic-i3-macOS
+# fantastic-i3-app
 
 [English](README.md) · 属于 [fantastic-i3](https://github.com/mejistus/fantastic-i3/blob/main/README.zh-CN.md)，那边是 Linux 上的 i3 配置
 
@@ -8,29 +8,37 @@ macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) �
 
 ## 安装
 
-只支持 Apple Silicon。一行：
+只支持 Apple Silicon，要先装好 [Homebrew](https://brew.sh)。
 
 ```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/mejistus/fantastic-i3-macOS/main/install.sh)"
+brew install mejistus/mona/fantastic-i3
+fantastic-i3 setup
 ```
 
-已经克隆了仓库，就在里面运行 `bash install.sh`。脚本可以重复运行，它会：
+第一行装上 yabai、skhd、SketchyBar、jq 和这个仓库。第二行可以重复运行，它会：
 
-1. 没有 Homebrew 就装上。会问开机密码，顺带装好 Xcode 命令行工具。
-2. 用 curl 跑的，把仓库克隆到看不见的 `~/.local/share/fantastic-i3-macOS`。已经克隆了的放在哪里都行（比如 fantastic-i3 的子模块 `macos`）。
-3. 逐个检查 yabai、skhd、SketchyBar、jq 和字体，没装的装上。
-4. 把仓库里的 `yabai`、`skhd`、`sketchybar` 三个文件夹链接成 `~/.config/yabai`、`~/.config/skhd`、`~/.config/sketchybar`，原来的备份成 `.bak-日期`。配置和脚本之间都经由 `~/.config` 互相找，别处不建任何链接。
-5. 关掉"根据最近的使用情况自动重新排列空间"。
-6. 编译 aero-helper（窗口切换器、顶栏数据），启动各项服务。系统菜单栏设为常显，SketchyBar 盖在它上面。
+1. 装上两个字体：Maple Mono NF、sketchybar-app-font（字体是 cask，brew 的 formula 带不了）。
+2. 把 `yabai`、`skhd`、`sketchybar` 三个文件夹链接成 `~/.config/yabai`、`~/.config/skhd`、`~/.config/sketchybar`，原来的备份成 `.bak-日期`。配置和脚本之间都经由 `~/.config` 互相找。`bin/` 里的命令链接到 `~/.local/bin`，快捷键从那里调。别处不建任何链接。
+3. 关掉"根据最近的使用情况自动重新排列空间"。
+4. 编译 aero-helper（窗口切换器、顶栏数据），启动各项服务。系统菜单栏设为常显，SketchyBar 盖在它上面。
 
 然后列出还要手动做的事：
 
-- 系统设置 → 隐私与安全性 → 辅助功能：打开 yabai 和 skhd，再运行一次脚本。
+- 系统设置 → 隐私与安全性 → 辅助功能：打开 yabai 和 skhd，再运行一次 `fantastic-i3 setup`。
 - 在调度中心里把桌面加到 17 个。
 
-最后打印一张快捷键表，建议截图保存；`install.sh --keys` 可以再打印一次。
+最后打印一张快捷键表，建议截图保存；`fantastic-i3 keys` 可以再打印一次。
 
 Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不能使用你的位置、"fantastic-i3-bluetooth"能不能使用蓝牙，两个都请点允许：macOS 只把 Wi-Fi 名称给有定位权限的程序，蓝牙面板要蓝牙权限才能列出你的设备。
+
+| 命令 | 作用 |
+|---|---|
+| `fantastic-i3 start` / `stop` / `restart` | 启动 / 停止 / 重启 yabai、skhd、SketchyBar。`brew upgrade` 之后 restart 一下 |
+| `fantastic-i3 status` | 快捷键模式、[脚本扩展](#瞬间切换)有没有加载、每个桌面对应的工作区 |
+| `fantastic-i3 setup-sa` | 装[脚本扩展](#瞬间切换) |
+| `fantastic-i3 uninstall` | 停掉服务，拿掉 setup 建的链接，系统的切换桌面快捷键改回默认；之后再 `brew uninstall fantastic-i3` |
+
+改代码：克隆这个仓库，运行 `<仓库>/bin/fantastic-i3 setup`，`~/.config` 就链到你的克隆，改了立刻生效（⌃S Esc 重新加载）。换回 brew 装的那份：`$(brew --prefix)/bin/fantastic-i3 setup`。
 
 ## 快捷键
 
@@ -165,13 +173,13 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 没有 yabai 的脚本扩展时，切换工作区有 macOS 的滑动动画，⌥T 和 ⌥⇧⇥ 也用不了。脚本扩展要部分关闭 SIP：
 
 1. 在恢复模式里运行 `csrutil enable --without fs --without debug --without nvram`。
-2. 运行 [`yabai/setup-sa`](yabai/setup-sa)，它要求时就重启。
+2. 运行 `fantastic-i3 setup-sa`（[`yabai/setup-sa`](yabai/setup-sa)），它要求时就重启。
 
-加载之后，缺的桌面会自动补齐。每次升级 yabai 后要再运行一次 `setup-sa`。在 macOS 15 上它还会给 yabai 的加载器打补丁，让它能注入 Dock（[yabai#2686](https://github.com/asmvik/yabai/issues/2686)）。
+加载之后，缺的桌面会自动补齐。每次升级 yabai 后要再运行一次 `fantastic-i3 setup-sa`。在 macOS 15 上它还会给 yabai 的加载器打补丁，让它能注入 Dock（[yabai#2686](https://github.com/asmvik/yabai/issues/2686)）。
 
 ## 排错
 
-- `yabai/aero status` 显示快捷键模式、脚本扩展有没有加载，以及每个桌面对应的工作区和窗口数。
+- `fantastic-i3 status` 显示快捷键模式、脚本扩展有没有加载，以及每个桌面对应的工作区和窗口数。
 - ⌥⇧ 移窗口失败会记在 `/tmp/yabai-aero-$USER/aero.log`。
 - ⌃S Esc 重新加载配置。
 
@@ -179,7 +187,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 
 | 路径 | 内容 |
 |---|---|
-| [`install.sh`](install.sh) | 安装脚本 |
+| [`bin/fantastic-i3`](bin/fantastic-i3) | 安装、启动、停止、卸载 |
 | [`yabai/yabairc`](yabai/yabairc) | yabai 配置：规则、固定工作区、信号 |
 | [`yabai/aero`](yabai/aero) | 快捷键调用的工作区和窗口命令 |
 | [`yabai/helper/`](yabai/helper) | aero-helper（Swift）：切换列表、剪贴板历史、截图识别、顶栏数据和背景 |
@@ -192,8 +200,4 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | [`yabai/new_window_here`](yabai/new_window_here) | ⌥D 和 ⌥⇧D |
 | [`yabai/capture`](yabai/capture) | ⌥O 和 ⌥I（识别在 `yabai/helper/capture.swift`） |
 
-安装脚本把 [`bin/`](bin) 里的每个命令链接到 `~/.local/bin`，终端里也能直接用（`fantastic-clipboard`、`fantastic-app-launcher --list`），快捷键也是从那里调的。除了上面两个，`bin/` 里还有几个独立的小工具：`center-window`（把最前面的窗口居中，AeroSpace 配置里用）、`freemps`（用 PyTorch 在 MPS 上占用指定大小的显存，默认 8 GB）、`list_brew_packages`（按占用空间列出 Homebrew 装的包）、`nvim-opener.sh`（在 kitty 里用 Neovim 打开文件）。
-
-在 [fantastic-i3](https://github.com/mejistus/fantastic-i3) 里运行时，安装脚本还会把它的 tmux 配置（`../tmux`，Linux 和 macOS 共用）链接到 `~/.config/tmux`。
-
-这里的其它文件夹（`kitty/`、`aerospace/`）是独立的配置，安装脚本不碰它们。Neovim 配置用 [NextVim](https://github.com/mejistus/NextVim)。
+`fantastic-i3 setup` 把 [`bin/`](bin) 里的每个命令链接到 `~/.local/bin`，快捷键从那里调；终端里也能直接用（`fantastic-clipboard`、`fantastic-app-launcher --list`）。

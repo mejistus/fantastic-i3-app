@@ -87,14 +87,30 @@ current_space() {
     yabai -m query --spaces --space | jq -r .index
 }
 
+# 编译出来的东西（~/.cache/fantastic-i3 里）旁边记一份源码的指纹（<名字>.sum）。克隆、brew upgrade 会刷新文件时间，
+# 内容没变就不重新编译：面板的 App 重新编译后签名变了，又要重新允许定位、蓝牙
+stale() { # <产物> <源码>...：没编译过，或者源码比它新、内容也变了
+    local out=$1
+    shift
+    [ -x "$out" ] || return 0
+    [ -n "$(find "$@" -newer "$out" 2>/dev/null)" ] || return 1
+    [ "$(cat "$@" | md5)" = "$(cat "$HOME/.cache/fantastic-i3/$(basename "$out").sum" 2>/dev/null)" ] || return 0
+    touch "$out"   # 内容没变：以后直接比时间
+    return 1
+}
+built() { # <产物> <源码>...：编译好了，记下源码的指纹
+    cat "${@:2}" | md5 >"$HOME/.cache/fantastic-i3/$(basename "$1").sum"
+}
+
 # 小工具 aero-helper（Swift，源码 helper/*.swift）：模拟按键、等修饰键松开、窗口切换列表、SketchyBar 数据。
 # 第一次用到或源码改过时自动编译（约 15 秒）。
 HELPER="$HOME/.cache/fantastic-i3/aero-helper"
 helper() {
-    if [ ! -x "$HELPER" ] || [ -n "$(find "$HERE/helper" -maxdepth 1 -name '*.swift' -newer "$HELPER" 2>/dev/null)" ]; then
+    if stale "$HELPER" "$HERE"/helper/*.swift; then
         mkdir -p "$(dirname "$HELPER")"
         if swiftc -O -swift-version 5 -o "$HELPER.$$" "$HERE"/helper/*.swift 2>/dev/null; then
             mv -f "$HELPER.$$" "$HELPER"
+            built "$HELPER" "$HERE"/helper/*.swift
         else
             rm -f "$HELPER.$$"
             notify "aero-helper 编译失败：swiftc -O -o $HELPER $HERE/helper/*.swift"
@@ -110,10 +126,8 @@ helper() {
 # 常驻后台：SIGUSR1 打开 / 收起（位置在 $STATE/<名字>-anchor），SIGUSR2 收起，SIGHUP 让蓝牙那个把栏上的图标再推一遍
 PANELS="wifi bluetooth"
 panel_bin() { echo "$HOME/.cache/fantastic-i3/fantastic-i3-$1.app/Contents/MacOS/fantastic-i3-$1"; }
-panel_stale() { # <名字>：没编译过，或源码比它新
-    local bin
-    bin=$(panel_bin "$1")
-    [ ! -x "$bin" ] || [ -n "$(find "$HERE/helper/panels/common.swift" "$HERE/helper/panels/$1.swift" -newer "$bin" 2>/dev/null)" ]
+panel_stale() { # <名字>：没编译过，或源码改过
+    stale "$(panel_bin "$1")" "$HERE/helper/panels/common.swift" "$HERE/helper/panels/$1.swift"
 }
 panel_app() { # <名字>：需要时编译、签名；没在跑就启动。输出进程号
     local name=$1 app bin usage pid old
@@ -154,6 +168,7 @@ PLIST
             "$HERE/helper/panels/common.swift" "$HERE/helper/panels/$name.swift" 2>/dev/null; then
             mv -f "$bin.$$" "$bin"
             codesign --force --sign - --identifier "io.github.mejistus.fantastic-i3.$name" "$app" >/dev/null 2>&1
+            built "$bin" "$HERE/helper/panels/common.swift" "$HERE/helper/panels/$name.swift"
             pkill -f "^$bin" 2>/dev/null   # 旧版本还在跑：换成新的
             for _ in $(seq 20); do pgrep -qf "^$bin" || break; sleep 0.1; done
         else
@@ -870,7 +885,7 @@ cmd_spaces() {
     elif [ "$have" -lt "$n" ] && [ ! -f "$STATE/notified-spaces" ]; then
         # 每次开机只提醒一次（添加桌面时会反复重新加载）
         touch "$STATE/notified-spaces"
-        notify "现在只有 $have 个桌面，工作区需要 $n 个：在调度中心里添加桌面，或运行 setup-sa 自动创建"
+        notify "现在只有 $have 个桌面，工作区需要 $n 个：在调度中心里添加桌面，或运行 fantastic-i3 setup-sa 自动创建"
     fi
     # 先清掉所有标签再重新贴，避免重名
     for idx in $(yabai -m query --spaces | jq -r '.[] | select(.label != "") | .index'); do
@@ -893,7 +908,7 @@ cmd_status() {
     if sudo -n /opt/homebrew/bin/yabai --load-sa >/dev/null 2>&1; then
         echo "脚本扩展 SA: 已加载"
     else
-        echo "脚本扩展 SA: 未加载（运行 $HERE/setup-sa）"
+        echo "脚本扩展 SA: 未加载（运行 fantastic-i3 setup-sa）"
     fi
     echo "boot-args: $(nvram boot-args 2>/dev/null | cut -f2-)"
     yabai -m query --spaces | jq -r --argjson ws "$(printf '%s\n' "${WORKSPACES[@]}" | jq -R . | jq -s .)" '.[]

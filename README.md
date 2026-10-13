@@ -1,4 +1,4 @@
-# fantastic-i3-macOS
+# fantastic-i3-app
 
 [中文](README.zh-CN.md) · Part of [fantastic-i3](https://github.com/mejistus/fantastic-i3), my i3 setup for Linux
 
@@ -8,29 +8,37 @@ An i3-style tiling setup for macOS. [yabai](https://github.com/asmvik/yabai) til
 
 ## Install
 
-Apple Silicon only. One line:
+Apple Silicon only, with [Homebrew](https://brew.sh) installed.
 
 ```sh
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/mejistus/fantastic-i3-macOS/main/install.sh)"
+brew install mejistus/mona/fantastic-i3
+fantastic-i3 setup
 ```
 
-From a clone, run `bash install.sh` in it instead. The script is safe to rerun. It:
+The first line installs yabai, skhd, SketchyBar, jq and this repo. The second is safe to rerun. It:
 
-1. Installs Homebrew if it's missing. It asks for your login password and also installs the Xcode command-line tools.
-2. When run with curl, clones the repo to `~/.local/share/fantastic-i3-macOS`, out of sight. An existing clone can be anywhere, such as the `macos` submodule of fantastic-i3.
-3. Checks yabai, skhd, SketchyBar, jq and the fonts, and installs the missing ones.
-4. Links the repo's `yabai`, `skhd` and `sketchybar` folders as `~/.config/yabai`, `~/.config/skhd` and `~/.config/sketchybar`; existing ones are backed up as `.bak-<date>`. Configs and scripts find each other through `~/.config`, so nothing else is linked anywhere.
-5. Turns off "Automatically rearrange Spaces based on most recent use".
-6. Builds aero-helper (window switcher, bar stats) and starts the services. The macOS menu bar is set to always show, and SketchyBar is drawn over it.
+1. Installs two fonts, Maple Mono NF and sketchybar-app-font (fonts are casks, which a Homebrew formula can't depend on).
+2. Links the `yabai`, `skhd` and `sketchybar` folders as `~/.config/yabai`, `~/.config/skhd` and `~/.config/sketchybar`; existing ones are backed up as `.bak-<date>`. Configs and scripts find each other through `~/.config`. The commands in `bin/` are linked into `~/.local/bin`, where the keys call them. Nothing else is linked anywhere.
+3. Turns off "Automatically rearrange Spaces based on most recent use".
+4. Builds aero-helper (window switcher, bar stats) and starts the services. The macOS menu bar is set to always show, and SketchyBar is drawn over it.
 
 Then it lists what's left to do by hand:
 
-- Give yabai and skhd Accessibility access (System Settings → Privacy & Security → Accessibility), then rerun the script.
+- Give yabai and skhd Accessibility access (System Settings → Privacy & Security → Accessibility), then run `fantastic-i3 setup` again.
 - Add desktops in Mission Control until there are 17.
 
-Last, it prints a key cheat sheet. Take a screenshot of it; `install.sh --keys` prints it again.
+Last, it prints a key cheat sheet. Take a screenshot of it; `fantastic-i3 keys` prints it again.
 
 The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantastic-i3-wifi" may use your location and whether "fantastic-i3-bluetooth" may use Bluetooth. Allow both: macOS only shows Wi-Fi names to apps with location access, and the Bluetooth panel needs Bluetooth access to list your devices.
+
+| Command | What |
+|---|---|
+| `fantastic-i3 start` / `stop` / `restart` | Start, stop or restart yabai, skhd and SketchyBar. Restart after `brew upgrade` |
+| `fantastic-i3 status` | Key mode, whether the [scripting addition](#instant-switching) is loaded, and the workspace of every desktop |
+| `fantastic-i3 setup-sa` | Sets up the [scripting addition](#instant-switching) |
+| `fantastic-i3 uninstall` | Stops the services, removes the links setup made and resets the desktop-switching shortcuts; then `brew uninstall fantastic-i3` |
+
+To work on the code, clone this repo and run `<clone>/bin/fantastic-i3 setup`: `~/.config` then points at your clone, so changes apply right away (⌃S Esc reloads). To go back to the Homebrew copy, run `$(brew --prefix)/bin/fantastic-i3 setup`.
 
 ## Keys
 
@@ -165,13 +173,13 @@ The detail panels get the same treatment: their own fill is transparent, and the
 Without yabai's scripting addition, workspaces switch with macOS's slide animation, and ⌥T and ⌥⇧⇥ don't work. The scripting addition needs SIP partly disabled:
 
 1. In Recovery, run `csrutil enable --without fs --without debug --without nvram`.
-2. Run [`yabai/setup-sa`](yabai/setup-sa), and reboot if it asks.
+2. Run `fantastic-i3 setup-sa` ([`yabai/setup-sa`](yabai/setup-sa)), and reboot if it asks.
 
-Once it's loaded, missing desktops are created automatically. Run `setup-sa` again after every yabai upgrade. On macOS 15 it also patches yabai's loader so it can inject into the Dock ([yabai#2686](https://github.com/asmvik/yabai/issues/2686)).
+Once it's loaded, missing desktops are created automatically. Run `fantastic-i3 setup-sa` again after every yabai upgrade. On macOS 15 it also patches yabai's loader so it can inject into the Dock ([yabai#2686](https://github.com/asmvik/yabai/issues/2686)).
 
 ## Troubleshooting
 
-- `yabai/aero status` shows the key mode, whether the scripting addition is loaded, and every desktop with its workspace and window count.
+- `fantastic-i3 status` shows the key mode, whether the scripting addition is loaded, and every desktop with its workspace and window count.
 - Failed ⌥⇧ moves are logged to `/tmp/yabai-aero-$USER/aero.log`.
 - ⌃S Esc reloads the config.
 
@@ -179,7 +187,7 @@ Once it's loaded, missing desktops are created automatically. Run `setup-sa` aga
 
 | Path | What |
 |---|---|
-| [`install.sh`](install.sh) | The installer |
+| [`bin/fantastic-i3`](bin/fantastic-i3) | Setup, start, stop, uninstall |
 | [`yabai/yabairc`](yabai/yabairc) | yabai config: rules, fixed workspaces, signals |
 | [`yabai/aero`](yabai/aero) | Workspace and window commands the keys call |
 | [`yabai/helper/`](yabai/helper) | aero-helper (Swift): the switcher lists, clipboard history, screenshot recognition, bar stats and backdrop |
@@ -192,8 +200,4 @@ Once it's loaded, missing desktops are created automatically. Run `setup-sa` aga
 | [`yabai/new_window_here`](yabai/new_window_here) | ⌥D and ⌥⇧D |
 | [`yabai/capture`](yabai/capture) | ⌥O and ⌥I (recognition in `yabai/helper/capture.swift`) |
 
-The installer links every command in [`bin/`](bin) into `~/.local/bin`, so they also work from the terminal (`fantastic-clipboard`, `fantastic-app-launcher --list`); the keys call them there. Besides the two above, `bin/` has small standalone tools: `center-window` (centres the front window; the AeroSpace config calls it), `freemps` (allocates a given amount of GPU memory on the MPS device with PyTorch, 8 GB by default), `list_brew_packages` (Homebrew formulae and casks by disk size) and `nvim-opener.sh` (opens a file in Neovim in kitty).
-
-Run from inside [fantastic-i3](https://github.com/mejistus/fantastic-i3), the installer also links its shared tmux config (`../tmux`, used by Linux and macOS alike) to `~/.config/tmux`.
-
-The other folders here (`kitty/`, `aerospace/`) are standalone configs; the installer doesn't touch them. For Neovim use [NextVim](https://github.com/mejistus/NextVim).
+`fantastic-i3 setup` links every command in [`bin/`](bin) into `~/.local/bin`, where the keys call them; they also work from the terminal (`fantastic-clipboard`, `fantastic-app-launcher --list`).
