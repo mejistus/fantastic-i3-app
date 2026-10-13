@@ -15,7 +15,7 @@ brew install mejistus/mona/fantastic-i3
 fantastic-i3 setup
 ```
 
-第一行装上 yabai、skhd、SketchyBar、jq 和这个仓库。第二行可以重复运行，它会：
+第一行装上 yabai、skhd、SketchyBar、jq 和这个仓库。brew 装 SketchyBar 时会提示把它的示例配置复制到 `~/.config/sketchybar`，**不要照做**：`setup` 已经把那里接到这个仓库的配置，复制会把它覆盖掉（覆盖了的话：`brew reinstall fantastic-i3`，再 `fantastic-i3 restart`）。第二行可以重复运行，它会：
 
 1. 装上两个字体：Maple Mono NF、sketchybar-app-font（字体是 cask，brew 的 formula 带不了）。
 2. 把 `yabai`、`skhd`、`sketchybar` 三个文件夹链接成 `~/.config/yabai`、`~/.config/skhd`、`~/.config/sketchybar`，原来的备份成 `.bak-日期`。配置和脚本之间都经由 `~/.config` 互相找。`bin/` 里的命令链接到 `~/.local/bin`，快捷键从那里调。别处不建任何链接。

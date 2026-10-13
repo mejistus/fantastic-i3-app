@@ -15,7 +15,7 @@ brew install mejistus/mona/fantastic-i3
 fantastic-i3 setup
 ```
 
-The first line installs yabai, skhd, SketchyBar, jq and this repo. The second is safe to rerun. It:
+The first line installs yabai, skhd, SketchyBar, jq and this repo. Homebrew also tells you to copy SketchyBar's example config into `~/.config/sketchybar`: **don't**. `setup` points that folder at this repo's config, and copying would overwrite it (if it happened: `brew reinstall fantastic-i3`, then `fantastic-i3 restart`). The second is safe to rerun. It:
 
 1. Installs two fonts, Maple Mono NF and sketchybar-app-font (fonts are casks, which a Homebrew formula can't depend on).
 2. Links the `yabai`, `skhd` and `sketchybar` folders as `~/.config/yabai`, `~/.config/skhd` and `~/.config/sketchybar`; existing ones are backed up as `.bak-<date>`. Configs and scripts find each other through `~/.config`. The commands in `bin/` are linked into `~/.local/bin`, where the keys call them. Nothing else is linked anywhere.
