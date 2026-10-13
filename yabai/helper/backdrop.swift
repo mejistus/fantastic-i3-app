@@ -36,6 +36,7 @@ func CGSRemoveWindowsFromSpaces(_ cid: Int32, _ windows: CFArray, _ spaces: CFAr
 
 final class BarBackdrop {
     let sketchybar = "/opt/homebrew/bin/sketchybar"
+    let yabai = "/opt/homebrew/bin/yabai"
     // 在 sRGB（带 gamma）里模糊和压暗，和比对时的算法一致
     let context = CIContext(options: [.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!])
     let work = DispatchQueue(label: "bar-backdrop", qos: .utility)
@@ -53,10 +54,23 @@ final class BarBackdrop {
     let panelRadius: CGFloat = 12      // 和 sketchybarrc 里 popup.background.corner_radius 一样
     let panelInset: CGFloat = 8        // 材质比面板上下各多出这么多：面板的上下留白（SketchyBar 的面板第一行贴顶、最后一行贴底）。
                                        // sketchybarrc 的 popup.y_offset 也多加了这么多，离栏的距离不变
+    // 碰顶让开（见 checkPeek）
+    let peekDwell = 0.7                // 鼠标顶在屏幕上边缘、基本不动这么多秒，栏让开
+    let peekReturn = 0.3               // 让开后鼠标离开菜单栏那一截这么多秒（菜单也都关了），栏回来
+    let peekSlack: CGFloat = 8         // 顶在边上横着挪超过这么多点就重新计时：顺着上边缘滑过去点栏上的某一项不算
+    let peekMarker = "/tmp/yabai-aero-\(NSUserName())/bar-peek"   // 栏是这里让开的（aero bar-peek）；⌥⇧↩ 换过栏会删掉它
+    var edge: (x: CGFloat, since: Date)?   // 鼠标从哪儿、什么时候开始顶在上边缘
+    var awaySince: Date?               // 让开后鼠标从什么时候起不在菜单栏那一截
+    var peeking = false
+    var lastMenuCheck = Date.distantPast
+    var panelWatchUntil = Date.distantPast   // 收到 SIGUSR2 后这段时间里一直找面板（它可能出来得晚）
+    let wantedHidden = "/tmp/yabai-aero-\(NSUserName())/bar-hidden"   // aero show_bar / hide_bar 写的 on / off
+    var hiddenSetAt = Date.distantPast       // 照 aero 写的藏 / 放出的时候：之后半秒内问到的不算（可能是 SketchyBar 还没跟上的旧状态）
 
     func run() {
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)   // 不出现在程序坞和 ⌘⇥ 里，yabai 也不管它
+        try? FileManager.default.removeItem(atPath: wantedHidden)   // 上次留下的
         sync()
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
@@ -69,21 +83,27 @@ final class BarBackdrop {
         // 每秒看一次有没有盖满整块屏的窗口。查一次完整的窗口列表要几毫秒（窗口多时更多，窗口服务器那边也要干活），
         // 以前和面板一起每 0.2 秒查两次，这个进程常年占 20% 的 CPU
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.checkCovered() }.tolerance = 0.2
-        // 面板不定时查：plugins/hover.sh 打开 / 收起面板后发 SIGUSR2，马上垫上材质（面板出现可能晚几毫秒，再补看几次），
-        // 之后面板开着时每 1/30 秒跟一次，收起后就停
+        // 鼠标位置每 0.1 秒看一次（只读一下坐标，不查窗口列表）
+        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.checkPeek() }.tolerance = 0.03
+        // 面板不定时查：plugins/hover.sh 打开 / 收起面板后发 SIGUSR2，马上垫上材质。面板出现可能晚一些（忙的时候上百毫秒），
+        // 所以之后 1 秒内每 1/30 秒看一次；面板开着时一直这样跟，收起后就停
         signal(SIGUSR2, SIG_IGN)
         let panels = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
         panels.setEventHandler { [weak self] in
-            for delay in [0, 0.02, 0.06, 0.15] {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { self?.syncPanels() }
-            }
+            self?.panelWatchUntil = Date().addingTimeInterval(1)
+            self?.syncPanels()
         }
         panels.resume()
         panelSignal = panels
-        // aero toggle-bar（⌥⇧↩）藏起 / 放出栏后发 SIGUSR1：马上跟着藏 / 出来，不等 3 秒一次的检查
+        // aero 换栏（⌥⇧↩）时把要的状态写进 $STATE/bar-hidden 再发 SIGUSR1：整个换栏由这里来做（switchBar）。
+        // 没写状态就只是回头问一下 SketchyBar
         signal(SIGUSR1, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
-        source.setEventHandler { [weak self] in self?.sync() }
+        source.setEventHandler { [weak self] in
+            guard let self else { return }
+            guard let wanted = self.takeWantedHidden() else { self.sync(); return }
+            self.switchBar(hidden: wanted)
+        }
         source.resume()
         signalSource = source
         app.run()
@@ -117,7 +137,7 @@ final class BarBackdrop {
             rebuild()
         } else {
             // 藏起来只是变透明，窗口和图都留着：放出来时马上就是原样，不用重新建、等模糊图算好
-            if newHidden != hidden {
+            if newHidden != hidden && Date().timeIntervalSince(hiddenSetAt) > 0.5 {
                 hidden = newHidden
                 for window in windows.values { window.alphaValue = hidden ? 0 : 1 }
             }
@@ -125,6 +145,33 @@ final class BarBackdrop {
             checkWallpaper()
         }
         orderBelowBar()
+    }
+
+    /// aero 写的要藏还是要出来（两秒内写的才算，读完就删）
+    func takeWantedHidden() -> Bool? {
+        let url = URL(fileURLWithPath: wantedHidden)
+        guard let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        try? FileManager.default.removeItem(at: url)
+        guard Date().timeIntervalSince(date) < 2 else { return nil }
+        switch text.trimmingCharacters(in: .whitespacesAndNewlines) {
+        case "on": return true
+        case "off": return false
+        default: return nil
+        }
+    }
+
+    /// 马上藏起 / 放出底板（只改透明度，窗口和图都留着）。放出来后等栏的窗口回到屏上再排到它后面
+    func setHidden(_ value: Bool) {
+        hidden = value
+        hiddenSetAt = Date()
+        for window in windows.values { window.alphaValue = value ? 0 : 1 }
+        CATransaction.flush()   // 马上交给窗口服务器，不等这一轮主循环结束（换栏时后面还要等 yabai 的命令）
+        if !value {
+            for delay in [0.05, 0.2] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.orderBelowBar() }
+            }
+        }
     }
 
     func queryBar() -> [String: Any]? {
@@ -239,12 +286,15 @@ final class BarBackdrop {
     /// 面板开着时每 1/30 秒跟一次（内容变了会变高、被 bar-stats 收起），关着时只等 SIGUSR2
     func syncPanels() {
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        // 收起的面板 SketchyBar 不关窗口，只挪到屏外（-9999）：只算屏幕上的，不然一直当成开着，每秒 30 次跟个不停
+        let screens = NSScreen.screens.compactMap(displayID).map(CGDisplayBounds)
         var rects: [(number: Int, rect: CGRect)] = []
         for entry in info where entry[kCGWindowOwnerName as String] as? String == "sketchybar"
                               && entry[kCGWindowLayer as String] as? Int == 101 {
             guard let number = entry[kCGWindowNumber as String] as? Int,
                   let dict = entry[kCGWindowBounds as String] as? NSDictionary,
-                  let rect = CGRect(dictionaryRepresentation: dict as CFDictionary) else { continue }
+                  let rect = CGRect(dictionaryRepresentation: dict as CFDictionary),
+                  screens.contains(where: { $0.intersects(rect) }) else { continue }
             rects.append((number, rect))
         }
         let backgrounds = rects.filter { panel in
@@ -272,12 +322,102 @@ final class BarBackdrop {
             window.orderOut(nil)
             glass[number] = nil
         }
-        if glass.isEmpty {
+        if glass.isEmpty && Date() >= panelWatchUntil {
             panelTimer?.invalidate()
             panelTimer = nil
         } else if panelTimer == nil {
             panelTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.syncPanels() }
         }
+    }
+
+    // MARK: - 碰顶让开
+
+    /// 栏开着时，它下面的系统菜单栏（应用的菜单、没放进栏里的状态图标）点不到，以前只能 ⌥⇧↩ 换掉栏。
+    /// 现在鼠标顶在屏幕上边缘、基本不动 peekDwell 秒，栏就让开（aero bar-peek on：栏藏起来，系统菜单栏露出来）；
+    /// 鼠标离开菜单栏那一截 peekReturn 秒、点开的菜单也都关了，栏再回来（bar-peek off）。
+    /// 栏被 ⌥⇧↩ 藏着、被放映降下去、有面板或菜单开着、这块屏是原生全屏时不让
+    func checkPeek() {
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.insetBy(dx: 0, dy: -1).contains(mouse) }
+        let fromTop = screen.map { $0.frame.maxY - mouse.y } ?? .infinity
+        let now = Date()
+        if peeking {
+            // 让开期间 ⌥⇧↩ 换过栏（标记被删了）：不归这里管了
+            guard FileManager.default.fileExists(atPath: peekMarker) else { peeking = false; return }
+            if fromTop <= max(height, 24) + 6 { awaySince = nil; return }
+            guard let since = awaySince else { awaySince = now; return }
+            // 鼠标在点开的菜单里（菜单在菜单栏下面）就等它关上。查一次窗口列表要几毫秒，0.15 秒查一次
+            guard now.timeIntervalSince(since) >= peekReturn, now.timeIntervalSince(lastMenuCheck) >= 0.15 else { return }
+            lastMenuCheck = now
+            if popupOpen(includingOurs: false) { return }
+            peeking = false
+            awaySince = nil
+            try? FileManager.default.removeItem(atPath: peekMarker)
+            switchBar(hidden: false)
+            return
+        }
+        guard let screen, fromTop <= 2, !hidden, !lowered, glass.isEmpty else { edge = nil; return }
+        guard let start = edge, abs(mouse.x - start.x) <= peekSlack else { edge = (mouse.x, now); return }
+        guard now.timeIntervalSince(start.since) >= peekDwell else { return }
+        edge = nil
+        if let display = displayID(screen), fullscreenDisplays().contains(display) { return }
+        if popupOpen(includingOurs: true) { return }   //  菜单、Wi-Fi / 蓝牙面板这类开着
+        peeking = true
+        awaySince = nil
+        FileManager.default.createFile(atPath: peekMarker, contents: nil)
+        switchBar(hidden: true)
+    }
+
+    /// 屏幕上有没有开着的菜单或面板：系统菜单栏和状态图标点开的菜单、控制中心的面板都在 25 层以上（菜单是 101）。
+    /// 平时这一段是空的：收起的 SketchyBar 面板挪在屏外，1000 层以上的是常驻的（BetterDisplay 等）。
+    /// includingOurs = false 时不算自己的（SketchyBar、aero-helper、Wi-Fi / 蓝牙面板）
+    func popupOpen(includingOurs: Bool) -> Bool {
+        let ours: Set<String> = ["sketchybar", "aero-helper", "fantastic-i3-wifi", "fantastic-i3-bluetooth"]
+        let screens = NSScreen.screens.compactMap(displayID).map(CGDisplayBounds)
+        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        return info.contains { window in
+            guard let layer = window[kCGWindowLayer as String] as? Int, layer > 25, layer < 1000,
+                  includingOurs || !ours.contains(window[kCGWindowOwnerName as String] as? String ?? ""),
+                  (window[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                  let dict = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: dict as CFDictionary) else { return false }
+            return screens.contains { $0.intersects(bounds) }
+        }
+    }
+
+    /// 换栏：SketchyBar 的栏、栏下面这条底板、系统菜单栏（yabai 的 menubar_opacity）三样一起换。
+    /// 以前 aero 先发信号让这里改底板、自己再去改 SketchyBar，两边差几帧：中间空着一条磨砂，或者栏透明、没有磨砂。
+    /// 现在都在这里按顺序做，SketchyBar 的命令一返回（它已经挪好窗口）就在同一个线程里改底板，前后只差一毫秒左右：
+    ///   藏：系统菜单栏先看得见（这时还被盖着）→ 藏 SketchyBar → 撤底板
+    ///   放：放出 SketchyBar → 垫上底板 → 系统菜单栏透明（这时已经被盖住）
+    /// 在主线程上等这几个命令（一共二三十毫秒）
+    func switchBar(hidden value: Bool) {
+        if value {
+            runTool(yabai, ["-m", "config", "menubar_opacity", "1.0"])
+            runTool(sketchybar, ["--bar", "hidden=on"])
+            setHidden(true)
+        } else {
+            runTool(sketchybar, ["--bar", "hidden=off"])
+            setHidden(false)
+            runTool(yabai, ["-m", "config", "menubar_opacity", "0.0"])
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.sync() }   // 对一下栏高这些
+    }
+
+    /// 跑一个命令，等它结束。不用 Process.waitUntilExit：它隔一阵才看一次进程结束没有，要多等几十毫秒，
+    /// SketchyBar 早换好了，底板还要等这么久才跟上
+    func runTool(_ path: String, _ arguments: [String]) {
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        posix_spawn_file_actions_addopen(&actions, 1, "/dev/null", O_WRONLY, 0)
+        posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_WRONLY, 0)
+        let argv = ([path] + arguments).map { strdup($0) } + [nil]
+        defer { argv.forEach { free($0) } }
+        var pid: pid_t = 0
+        guard posix_spawn(&pid, path, &actions, nil, argv, environ) == 0 else { return }
+        var status: Int32 = 0
+        while waitpid(pid, &status, 0) == -1 && errno == EINTR {}
     }
 
     func makeGlass() -> NSWindow {

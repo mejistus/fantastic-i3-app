@@ -118,7 +118,7 @@ The built-in list is in [`yabai/yabairc`](yabai/yabairc).
 
 ## Top bar
 
-A SketchyBar bar styled like the i3 polybar (One Dark, Maple Mono NF). It is as tall as the menu bar (24 pt) and frosted like it, and it is drawn over the real menu bar, which always shows. While the bar is on, yabai's `menubar_opacity` makes the real one invisible and click-through, status icons included, so it never peeks through. The menu bar keeps its strip, so windows and desktop icons are laid out below it whether the bar is on or off. For the app menus (File, Edit, …), press ⌥⇧↩ to hide the bar.
+A SketchyBar bar styled like the i3 polybar (One Dark, Maple Mono NF). It is as tall as the menu bar (24 pt) and frosted like it, and it is drawn over the real menu bar, which always shows. While the bar is on, yabai's `menubar_opacity` makes the real one invisible and click-through, status icons included, so it never peeks through. The menu bar keeps its strip, so windows and desktop icons are laid out below it whether the bar is on or off. For the app menus (File, Edit, …), push the pointer against the top edge of the screen and keep it still for a moment (0.7 s): the bar steps aside, and it comes back as soon as the pointer leaves the menu bar and no menu is open. ⌥⇧↩ hides it until you press it again.
 
 **Left**
 

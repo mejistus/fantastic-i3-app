@@ -561,10 +561,7 @@ cmd_toggle_space_float() {
     return 0
 }
 
-# ⌥⇧↩：临时关掉 SketchyBar，换回常显的系统菜单栏（装 SketchyBar 之前的样子）；再按一次换回来，菜单栏又自动隐藏。
-# 底板（aero-helper bar-backdrop）收到 SIGUSR1 马上跟着藏 / 出来。栏藏起来时 yabai 不再给它留位置，
-# 常显的系统菜单栏 yabai 自己会让开（yabairc 里照栏现在的样子设）。SketchyBar 重载后栏总是显示的，
-# sketchybarrc 会把菜单栏改回自动隐藏
+# ⌥⇧↩（toggle-bar）：临时藏起 SketchyBar，露出下面常显的系统菜单栏；再按一次换回来。怎么换见 switch_bar
 # 顶栏：系统菜单栏总是常显、占着顶上那一截，窗口和桌面图标都排在它下面，所以两种模式下布局完全一样；
 # sketchybar = SketchyBar 的栏（topmost=on）和底板盖在菜单栏上；native = 栏藏起来，露出下面的系统菜单栏（应用的菜单在那里）。
 # 不带参数时照 ~/.config/fantastic-i3/bar：里面写 native 就是系统菜单栏，没有这个文件就是 SketchyBar。
@@ -572,21 +569,31 @@ cmd_toggle_space_float() {
 cmd_bar_apply() {
     command -v sketchybar >/dev/null 2>&1 || return 1
     local which=${1:-$(cat "$MEMORY/bar" 2>/dev/null)} before
+    rm -f "$STATE/bar-peek"   # 碰顶让开的那次不用再放回来了：这里定了是哪个
     # 以前 SketchyBar 模式下菜单栏是自动隐藏的：改回常显（只在真的变了时重开访达，见 finder_relaunch）
     before=$(defaults read -g _HIHideMenuBar 2>/dev/null || echo 0)
     helper menubar-autohide off
     [ "$before" = 0 ] || (finder_relaunch >/dev/null 2>&1 &)
-    yabai -m config external_bar all:0:0 2>/dev/null
+    [ "$(yabai -m config external_bar 2>/dev/null)" = all:0:0 ] || yabai -m config external_bar all:0:0 2>/dev/null   # 一样就不设：设一次 yabai 会把窗口重排一遍
     # 栏开着时系统菜单栏透明度设成 0：看不见（右边的状态图标也是），也不接鼠标（点击穿过去），但位置照样占着。
     # 不然状态图标和栏同在层级 25，哪个应用更新一下图标就可能排到栏前面，两条栏同时出现
-    if [ "$which" = native ]; then
-        sketchybar --bar hidden=on
+    if [ "$which" = native ]; then switch_bar on; else switch_bar off; fi
+}
+
+# 换栏：SketchyBar 的栏、栏下面的磨砂底板、系统菜单栏（yabai 的 menubar_opacity）三样要一起换，前后差几帧就会
+# 空着一条磨砂、或者栏透明没有磨砂。所以交给底板（aero-helper bar-backdrop 的 switchBar）一口气按顺序做：
+# 把要的状态写进 $STATE/bar-hidden 再发 SIGUSR1。底板没在跑（sketchybarrc 里，它还没起来）就自己换
+switch_bar() { # on = 藏起栏、露出系统菜单栏；off = 放出栏
+    echo "$1" >"$STATE/bar-hidden"
+    pkill -USR1 -f "^$HELPER bar-backdrop" && return 0
+    rm -f "$STATE/bar-hidden"
+    if [ "$1" = on ]; then
         yabai -m config menubar_opacity 1.0 2>/dev/null
+        sketchybar --bar hidden=on
     else
         sketchybar --bar hidden=off
         yabai -m config menubar_opacity 0.0 2>/dev/null
     fi
-    pkill -USR1 -f "^$HELPER bar-backdrop"
 }
 
 # 访达不跟着改"自动隐藏菜单栏"：一直用它启动时读到的设置。空桌面上最前面的就是它，那里的菜单栏就照它的来
@@ -605,13 +612,25 @@ finder_relaunch() {
     log "bar-apply: 菜单栏设置变了，重开访达"
 }
 
+# 只换栏（switch_bar），不像 bar-apply 那样再确认一遍菜单栏常显、external_bar：那些开机和重新加载时做过了，
+# 每按一次都做要多等 0.1 秒（menubar-autohide 那一下就要 70 多毫秒）
 cmd_toggle_bar() {
     command -v sketchybar >/dev/null 2>&1 || return 1
-    if [ "$(sketchybar --query bar | jq -r .hidden)" = on ]; then
-        cmd_bar_apply sketchybar
-    else
-        cmd_bar_apply native
-    fi
+    rm -f "$STATE/bar-peek"   # 碰顶让开的那次不用再放回来了
+    if [ "$(sketchybar --query bar | jq -r .hidden)" = on ]; then switch_bar off; else switch_bar on; fi
+}
+
+# 碰顶让开：鼠标顶在屏幕上边缘一会儿，栏临时让开、露出下面的系统菜单栏，鼠标离开后再回来。
+# 盯鼠标、换栏的都是 aero-helper bar-backdrop（helper/backdrop.swift 的 checkPeek），这里只是手动试用：
+#   bar-peek on    让开；$STATE/bar-peek 记着是碰顶让开的
+#   bar-peek off   回来：只在还是碰顶让开的时候（中途 ⌥⇧↩ 换过就不管）
+cmd_bar_peek() {
+    command -v sketchybar >/dev/null 2>&1 || return 1
+    case $1 in
+        on) touch "$STATE/bar-peek"; switch_bar on ;;
+        off) [ -e "$STATE/bar-peek" ] || return 0; rm -f "$STATE/bar-peek"; switch_bar off ;;
+        *) return 2 ;;
+    esac
 }
 
 # ⌃S M / ⌃S W（service 模式的 m / w）：记住当前应用的布局 / 工作区，以后它新开的窗口都这样。
@@ -894,6 +913,7 @@ case ${1:-} in
     ensure-focus) cmd_ensure_focus ;;
     follow) shift; cmd_follow "$@" ;;
     toggle-bar) cmd_toggle_bar ;;
+    bar-peek) shift; cmd_bar_peek "$@" ;;
     bar-apply) shift; cmd_bar_apply "$@" ;;
     panel) shift; cmd_panel "$@" ;;
     remember-layout) cmd_remember_layout ;;
