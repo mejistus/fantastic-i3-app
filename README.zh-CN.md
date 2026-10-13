@@ -4,7 +4,7 @@
 
 macOS 上 i3 风格的平铺桌面。[yabai](https://github.com/asmvik/yabai) 平铺窗口，[skhd](https://github.com/asmvik/skhd) 管快捷键，[SketchyBar](https://github.com/FelixKratz/SketchyBar) 代替菜单栏。有 17 个工作区：1 … 10 和 Z X C B N M T，每个对应一个 macOS 桌面。
 
-[安装](#安装) · [快捷键](#快捷键) · [固定工作区](#固定工作区) · [顶栏](#顶栏) · [瞬间切换](#瞬间切换) · [排错](#排错) · [文件](#文件)
+[安装](#安装) · [快捷键](#快捷键) · [固定工作区](#固定工作区) · [顶栏](#顶栏) · [瞬间切换](#瞬间切换) · [排错](#排错) · [文件](#文件) · [许可证](#许可证)
 
 ## 安装
 
@@ -201,3 +201,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | [`yabai/capture`](yabai/capture) | ⌥O 和 ⌥I（识别在 `yabai/helper/capture.swift`） |
 
 `fantastic-i3 setup` 把 [`bin/`](bin) 里的每个命令链接到 `~/.local/bin`，快捷键从那里调；终端里也能直接用（`fantastic-clipboard`、`fantastic-app-launcher --list`）。
+
+## 许可证
+
+[GPL-3.0](LICENSE) 或更新的版本（GPL-3.0-or-later）。yabai、skhd（MIT）和 SketchyBar（GPL-3.0）不在这个仓库里，由 Homebrew 从它们各自的源安装。[`sketchybar/icon_map.sh`](sketchybar/icon_map.sh) 原样取自 [sketchybar-app-font](https://github.com/kvndrsslr/sketchybar-app-font)（CC0-1.0）。

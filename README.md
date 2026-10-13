@@ -4,7 +4,7 @@
 
 An i3-style tiling setup for macOS. [yabai](https://github.com/asmvik/yabai) tiles windows, [skhd](https://github.com/asmvik/skhd) handles the keys and [SketchyBar](https://github.com/FelixKratz/SketchyBar) replaces the menu bar. There are 17 workspaces, 1 … 10 and Z X C B N M T, one per macOS desktop.
 
-[Install](#install) · [Keys](#keys) · [Fixed workspaces](#fixed-workspaces) · [Top bar](#top-bar) · [Instant switching](#instant-switching) · [Troubleshooting](#troubleshooting) · [Files](#files)
+[Install](#install) · [Keys](#keys) · [Fixed workspaces](#fixed-workspaces) · [Top bar](#top-bar) · [Instant switching](#instant-switching) · [Troubleshooting](#troubleshooting) · [Files](#files) · [License](#license)
 
 ## Install
 
@@ -201,3 +201,7 @@ Once it's loaded, missing desktops are created automatically. Run `fantastic-i3 
 | [`yabai/capture`](yabai/capture) | ⌥O and ⌥I (recognition in `yabai/helper/capture.swift`) |
 
 `fantastic-i3 setup` links every command in [`bin/`](bin) into `~/.local/bin`, where the keys call them; they also work from the terminal (`fantastic-clipboard`, `fantastic-app-launcher --list`).
+
+## License
+
+[GPL-3.0](LICENSE) or later (GPL-3.0-or-later). yabai, skhd (MIT) and SketchyBar (GPL-3.0) aren't part of this repo; Homebrew installs them from their own sources. [`sketchybar/icon_map.sh`](sketchybar/icon_map.sh) is copied unchanged from [sketchybar-app-font](https://github.com/kvndrsslr/sketchybar-app-font) (CC0-1.0).
