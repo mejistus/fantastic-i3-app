@@ -345,12 +345,12 @@ cmd_move_node_to_workspace() {
     if [ "$(jq -r .space <<<"$win")" = "$dst" ]; then
         return 0
     fi
-    log "move $target: 窗口 $id（$(jq -r .app <<<"$win")）从桌面 $(jq -r .space <<<"$win") 移到 $dst"
+    log "move $target: 窗口 ${id}（$(jq -r .app <<<"$win")）从桌面 $(jq -r .space <<<"$win") 移到 $dst"
 
     if [ "$follow" = --focus-follows-window ] && [ "$(keys_mode)" != sa ]; then
         # 没有 SA：先切到目标桌面，再把窗口移过来、聚焦。
         # 反过来（先移再聚焦）不可靠：原桌面被移空时 macOS 会自己切到别的应用的桌面，和我们抢。
-        workspace_focus "$dst" || log "move $target: 没切到桌面 $dst（⌥⇧ 按住超过 1 秒？），只移窗口"
+        workspace_focus "$dst" || log "move $target: 没切到桌面 ${dst}（⌥⇧ 按住超过 1 秒？），只移窗口"
         move_window "$id" "$dst" || { log "move $target: 移动失败"; notify "没能把窗口移到工作区 $target"; return 1; }
         yabai -m window --focus "$id" 2>/dev/null
         return 0

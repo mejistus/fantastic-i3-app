@@ -33,12 +33,15 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 
 | 命令 | 作用 |
 |---|---|
-| `fantastic-i3 start` / `stop` / `restart` | 启动 / 停止 / 重启 yabai、skhd、SketchyBar。`brew upgrade` 之后 restart 一下 |
-| `fantastic-i3 status` | 快捷键模式、[脚本扩展](#瞬间切换)有没有加载、每个桌面对应的工作区 |
+| `fantastic-i3 start` / `stop` / `restart`（`-r`） | 启动 / 停止 / 重启 yabai、skhd、SketchyBar。`brew upgrade` 之后 restart 一下 |
+| `fantastic-i3 status`（`-s`） | fantastic-i3、yabai、skhd、SketchyBar 的版本，快捷键模式、[脚本扩展](#瞬间切换)有没有加载、每个桌面对应的工作区 |
+| `fantastic-i3 keys`（`-k`） | 快捷键表 |
 | `fantastic-i3 setup-sa` | 装[脚本扩展](#瞬间切换) |
 | `fantastic-i3 uninstall` | 停掉服务，拿掉 setup 建的链接，系统的切换桌面快捷键改回默认；之后再 `brew uninstall fantastic-i3` |
+| `fantastic-i3 version`（`-v`） | 装的是哪个版本 |
+| `fantastic-i3 help`（`-h`） | 所有命令 |
 
-命令的输出默认是英文，系统语言是中文时是中文；`FANTASTIC_I3_LANG=en` 或 `FANTASTIC_I3_LANG=zh` 可以指定。
+每个命令也可以写成带两个横线的，比如 `--status`。命令的输出默认是英文，系统语言是中文时是中文；`FANTASTIC_I3_LANG=en` 或 `FANTASTIC_I3_LANG=zh` 可以指定。
 
 改代码：克隆这个仓库，运行 `<仓库>/bin/fantastic-i3 setup`，`~/.config` 就链到你的克隆，改了立刻生效（⌃S Esc 重新加载）。换回 brew 装的那份：`$(brew --prefix)/bin/fantastic-i3 setup`。
 
@@ -181,7 +184,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 
 ## 排错
 
-- `fantastic-i3 status` 显示快捷键模式、脚本扩展有没有加载，以及每个桌面对应的工作区和窗口数。
+- `fantastic-i3 status` 显示各部分的版本、快捷键模式、脚本扩展有没有加载，以及每个桌面对应的工作区和窗口数。
 - ⌥⇧ 移窗口失败会记在 `/tmp/yabai-aero-$USER/aero.log`。
 - ⌃S Esc 重新加载配置。
 

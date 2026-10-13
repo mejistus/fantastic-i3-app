@@ -33,12 +33,15 @@ The first time the Wi-Fi and Bluetooth panels start, macOS asks whether "fantast
 
 | Command | What |
 |---|---|
-| `fantastic-i3 start` / `stop` / `restart` | Start, stop or restart yabai, skhd and SketchyBar. Restart after `brew upgrade` |
-| `fantastic-i3 status` | Key mode, whether the [scripting addition](#instant-switching) is loaded, and the workspace of every desktop |
+| `fantastic-i3 start` / `stop` / `restart` (`-r`) | Start, stop or restart yabai, skhd and SketchyBar. Restart after `brew upgrade` |
+| `fantastic-i3 status` (`-s`) | Versions of fantastic-i3, yabai, skhd and SketchyBar, the key mode, whether the [scripting addition](#instant-switching) is loaded, and the workspace of every desktop |
+| `fantastic-i3 keys` (`-k`) | The key cheat sheet |
 | `fantastic-i3 setup-sa` | Sets up the [scripting addition](#instant-switching) |
 | `fantastic-i3 uninstall` | Stops the services, removes the links setup made and resets the desktop-switching shortcuts; then `brew uninstall fantastic-i3` |
+| `fantastic-i3 version` (`-v`) | The installed version |
+| `fantastic-i3 help` (`-h`) | All commands |
 
-The commands print English, or Chinese when the system language is Chinese; set `FANTASTIC_I3_LANG=en` or `FANTASTIC_I3_LANG=zh` to choose.
+Every command also works with two dashes, such as `--status`. The commands print English, or Chinese when the system language is Chinese; set `FANTASTIC_I3_LANG=en` or `FANTASTIC_I3_LANG=zh` to choose.
 
 To work on the code, clone this repo and run `<clone>/bin/fantastic-i3 setup`: `~/.config` then points at your clone, so changes apply right away (⌃S Esc reloads). To go back to the Homebrew copy, run `$(brew --prefix)/bin/fantastic-i3 setup`.
 
@@ -181,7 +184,7 @@ Once it's loaded, missing desktops are created automatically. Run `fantastic-i3 
 
 ## Troubleshooting
 
-- `fantastic-i3 status` shows the key mode, whether the scripting addition is loaded, and every desktop with its workspace and window count.
+- `fantastic-i3 status` shows the versions, the key mode, whether the scripting addition is loaded, and every desktop with its workspace and window count.
 - Failed ⌥⇧ moves are logged to `/tmp/yabai-aero-$USER/aero.log`.
 - ⌃S Esc reloads the config.
 

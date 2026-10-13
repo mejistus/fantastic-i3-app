@@ -26,6 +26,7 @@ export PATH="/opt/homebrew/bin:$PATH"
 
 # 这一份在哪。brew 装的在 Cellar/fantastic-i3/<版本>/libexec：换成不带版本号的 opt 路径，升级后链接照样有效
 ROOT=$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")
+REAL_ROOT=$ROOT   # 换成 opt 之前的路径，版本号从这里看
 case $ROOT in
     */Cellar/fantastic-i3/*/libexec) ROOT="${ROOT%%/Cellar/*}/opt/fantastic-i3/libexec" ;;
 esac
@@ -44,6 +45,30 @@ die() { echo "✗ $*" >&2; exit 1; }
 title() { if [ -t 1 ]; then printf '\033[1m%s\033[0m\n' "$*"; else echo "$*"; fi; }
 brew_copy() { case $ROOT in */opt/fantastic-i3/libexec) return 0 ;; *) return 1 ;; esac; }
 
+# 版本号：brew 装的是 Cellar 里那层文件夹的名字（--HEAD 装的是 HEAD-<提交>），自己克隆的用 git describe
+version() {
+    local v
+    case $REAL_ROOT in
+        */Cellar/fantastic-i3/*/libexec) v=${REAL_ROOT%/libexec}; echo "${v##*/}" ;;
+        *) if v=$(git -C "$ROOT" describe --tags --dirty 2>/dev/null); then echo "${v#v}"; else echo unknown; fi ;;
+    esac
+}
+
+# yabai 7.1.25 · skhd 0.3.9 · sketchybar 2.24.1：从 brew 的 opt 链接读，不用运行它们
+dep_versions() {
+    local f v line=
+    for f in yabai skhd sketchybar; do
+        if [ -e "/opt/homebrew/opt/$f" ]; then
+            v=$(readlink -f "/opt/homebrew/opt/$f")
+            v=${v##*/}
+        else
+            v=$(t "没装" "not installed")
+        fi
+        line+="${line:+ · }$f $v"
+    done
+    echo "$line"
+}
+
 usage() {
     if [ "$ZH" = 1 ]; then
         cat <<'EOF'
@@ -51,15 +76,18 @@ fantastic-i3：macOS 上 i3 风格的平铺桌面（yabai、skhd 和 SketchyBar�
 
 用法：fantastic-i3 <命令>
 
-  setup      接好配置、启动服务、检查权限。brew install 之后运行一次，可以重复运行
-  start      启动 yabai、skhd 和 SketchyBar
-  stop       停止它们
-  restart    重启它们（brew upgrade 之后运行）
-  status     桌面快捷键模式、脚本扩展有没有加载、每个桌面对应的工作区
-  keys       快捷键表
-  setup-sa   装 yabai 的脚本扩展，瞬间切换桌面（要先部分关闭 SIP）
-  uninstall  停掉服务，拿掉 setup 建的链接，系统的切换桌面快捷键改回默认
+  setup        接好配置、启动服务、检查权限。brew install 之后运行一次，可以重复运行
+  start        启动 yabai、skhd 和 SketchyBar
+  stop         停止它们
+  restart, -r  重启它们（brew upgrade 之后运行）
+  status, -s   版本、桌面快捷键模式、脚本扩展有没有加载、每个桌面对应的工作区
+  keys, -k     快捷键表
+  setup-sa     装 yabai 的脚本扩展，瞬间切换桌面（要先部分关闭 SIP）
+  uninstall    停掉服务，拿掉 setup 建的链接，系统的切换桌面快捷键改回默认
+  version, -v  版本号
+  help, -h     这份说明
 
+每个命令也可以写成带两个横线的，比如 --status。
 系统语言是中文时输出中文，否则英文；FANTASTIC_I3_LANG=en 或 zh 可以指定。
 EOF
     else
@@ -68,18 +96,22 @@ fantastic-i3: an i3-style tiling desktop for macOS (yabai, skhd and SketchyBar)
 
 Usage: fantastic-i3 <command>
 
-  setup      Link the configuration, start the services and check permissions.
-             Run it once after brew install; it is safe to run again.
-  start      Start yabai, skhd and SketchyBar
-  stop       Stop them
-  restart    Restart them (run this after brew upgrade)
-  status     Show the desktop key mode, the scripting addition and the workspace of each desktop
-  keys       Show the key bindings
-  setup-sa   Set up yabai's scripting addition for instant desktop switching
-             (requires System Integrity Protection to be partially disabled)
-  uninstall  Stop the services, remove the links created by setup and restore
-             the default desktop shortcuts
+  setup        Link the configuration, start the services and check permissions.
+               Run it once after brew install; it is safe to run again.
+  start        Start yabai, skhd and SketchyBar
+  stop         Stop them
+  restart, -r  Restart them (run this after brew upgrade)
+  status, -s   Show the versions, the desktop key mode, the scripting addition
+               and the workspace of each desktop
+  keys, -k     Show the key bindings
+  setup-sa     Set up yabai's scripting addition for instant desktop switching
+               (requires System Integrity Protection to be partially disabled)
+  uninstall    Stop the services, remove the links created by setup and restore
+               the default desktop shortcuts
+  version, -v  Show the version
+  help, -h     Show this help
 
+Every command can also be written with two dashes, for example --status.
 Output is in English unless the system language is Chinese.
 Set FANTASTIC_I3_LANG=en or FANTASTIC_I3_LANG=zh to choose.
 EOF
@@ -217,7 +249,7 @@ check_bar_config() {
     cmp -s "$ROOT/sketchybar/sketchybarrc" /opt/homebrew/opt/sketchybar/share/sketchybar/examples/sketchybarrc || return 0
     local restore
     if brew_copy; then restore="brew reinstall fantastic-i3"; else restore="git -C $ROOT checkout -- sketchybar"; fi
-    die "$(t "顶栏配置被 SketchyBar 的示例覆盖了（brew 提示的复制命令不要照做）。恢复：$restore，再运行 fantastic-i3 restart" \
+    die "$(t "顶栏配置被 SketchyBar 的示例覆盖了（brew 提示的复制命令不要照做）。恢复：${restore}，再运行 fantastic-i3 restart" \
         "The bar configuration was overwritten by SketchyBar's example configuration. Restore it with: $restore, then run fantastic-i3 restart")"
 }
 
@@ -363,6 +395,12 @@ cmd_stop() {
     ok "$(t "yabai、skhd、SketchyBar 已停止（fantastic-i3 start 再启动）" "Stopped yabai, skhd and SketchyBar (run fantastic-i3 start to start them again)")"
 }
 
+cmd_status() {
+    echo "fantastic-i3 $(version)$(t "（${ROOT}）" " ($ROOT)")"
+    dep_versions
+    exec "$AERO" status
+}
+
 cmd_restart() {
     check_bar_config
     yabai --restart-service
@@ -414,14 +452,18 @@ cmd_uninstall() {
         "Finally, run brew uninstall fantastic-i3. yabai, skhd, SketchyBar and the two fonts can be removed with brew uninstall as well.")"
 }
 
+# 每个命令也认 --<命令>；常用的几个还有一个字母的写法
 case ${1:-} in
-    setup) cmd_setup ;;
-    start) cmd_start ;;
-    stop) cmd_stop ;;
-    restart) cmd_restart ;;
-    status) exec "$AERO" status ;;
-    keys) keys ;;
-    setup-sa) shift; exec "$ROOT/yabai/setup-sa" "$@" ;;
-    uninstall) cmd_uninstall ;;
-    *) usage; exit 1 ;;
+    setup | --setup) cmd_setup ;;
+    start | --start) cmd_start ;;
+    stop | --stop) cmd_stop ;;
+    restart | -r | --restart) cmd_restart ;;
+    status | -s | --status) cmd_status ;;
+    keys | -k | --keys) keys ;;
+    setup-sa | --setup-sa) shift; exec "$ROOT/yabai/setup-sa" "$@" ;;
+    uninstall | --uninstall) cmd_uninstall ;;
+    version | -v | --version) echo "fantastic-i3 $(version)" ;;
+    help | -h | --help) usage ;;
+    "") usage; exit 1 ;;
+    *) die "$(t "没有这个命令：$1。运行 fantastic-i3 --help 看所有命令" "Unknown command: $1. Run fantastic-i3 --help for the list of commands.")" ;;
 esac
