@@ -49,6 +49,8 @@ func levelColor(_ percent: Double, warn: Double = 60, alert: Double = 85) -> Str
 
 /// 弹出面板的颜色（两种主题都是彩色的，和 sketchybar/colors.sh 的调色板一致）
 let green = "0xff98c379", yellow = "0xffe5c07b", red = "0xffe06c75", foreground = "0xffeaeaea"
+let blue = "0xff61afef", lightBlue = "0xffa8d4f7", cyan = "0xff56b6c2", orange = "0xffd19a66"
+let secondary = "0x99ffffff"   // 面板里的二级文字（sketchybar/colors.sh 的 POPUP_FG2）
 
 /// SketchyBar 的进程还在不在。sketchybar 命令失败不一定是它退出了：重新加载、睡眠唤醒后重建栏的那几秒里也会失败，
 /// 常驻的 bar-stats / bar-backdrop 只在进程真没了的时候才退出
@@ -120,6 +122,111 @@ func cpuTitle() -> String {
         return "\(model) · \(cores) 核（\(performance) 性能 + \(efficiency) 能效）"
     }
     return "\(model) · \(cores) 核"
+}
+
+// MARK: - 各个核心
+
+/// 一种核心：名字（性能核、能效核）和它们的逻辑 CPU 编号（host_processor_info 里的下标）
+struct CoreGroup {
+    let name: String
+    let cpus: [Int]
+}
+
+/// 按核心类型分组，性能高的在前（面板里从左往右排）。
+/// 类型看设备树 IODeviceTree:/cpus/cpuN 的 cluster-type："P" 性能核、"E" 能效核；以后有别的字母也单独分一组，排在两者之间。
+/// 读不到时按 hw.perflevelN.logicalcpu 的个数分，编号小的性能低（M1–M4 都是能效核在前）；再不行就全算一组
+func coreGroups(count: Int) -> [CoreGroup] {
+    var types: [Int: String] = [:]
+    let cpus = IORegistryEntryFromPath(kIOMainPortDefault, "IODeviceTree:/cpus")
+    if cpus != 0 {
+        var iterator: io_iterator_t = 0
+        if IORegistryEntryGetChildIterator(cpus, kIODeviceTreePlane, &iterator) == KERN_SUCCESS {
+            var cpu = IOIteratorNext(iterator)
+            while cpu != 0 {
+                func property(_ key: String) -> Any? {
+                    IORegistryEntryCreateCFProperty(cpu, key as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue()
+                }
+                if let id = property("logical-cpu-id") as? Int, let data = property("cluster-type") as? Data,
+                   let type = String(bytes: data.prefix { $0 != 0 }, encoding: .ascii), !type.isEmpty {
+                    types[id] = type
+                }
+                IOObjectRelease(cpu)
+                cpu = IOIteratorNext(iterator)
+            }
+            IOObjectRelease(iterator)
+        }
+        IOObjectRelease(cpus)
+    }
+    if count > 0, Set(types.keys) == Set(0..<count) {
+        let names = ["P": "性能核", "E": "能效核"]
+        let rank = { (type: String) in type == "P" ? "0" : type == "E" ? "2" : "1" + type }
+        return Dictionary(grouping: types.keys) { types[$0]! }
+            .sorted { rank($0.key) < rank($1.key) }
+            .map { CoreGroup(name: names[$0.key] ?? "\($0.key) 核", cpus: $0.value.sorted()) }
+    }
+    var groups: [CoreGroup] = [], next = 0
+    for level in (0..<(sysctlInt("hw.nperflevels") ?? 0)).reversed() {
+        guard let n = sysctlInt("hw.perflevel\(level).logicalcpu"), n > 0, next + n <= count else { break }
+        let name = ["Performance": "性能核", "Efficiency": "能效核"][sysctlString("hw.perflevel\(level).name") ?? ""] ?? "核心"
+        groups.insert(CoreGroup(name: name, cpus: Array(next..<next + n)), at: 0)
+        next += n
+    }
+    return next == count && count > 0 ? groups : [CoreGroup(name: "核心", cpus: Array(0..<count))]
+}
+
+/// 每个逻辑 CPU 累计的 tick（下标就是 logical-cpu-id）
+func coreTicks() -> [CPUTicks] {
+    var cpuCount: natural_t = 0
+    var info: processor_info_array_t?
+    var infoCount: mach_msg_type_number_t = 0
+    guard host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &cpuCount, &info, &infoCount) == KERN_SUCCESS,
+          let info else { return [] }
+    defer {
+        vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: info)), vm_size_t(Int(infoCount) * MemoryLayout<integer_t>.stride))
+    }
+    return (0..<Int(cpuCount)).map { cpu in
+        func tick(_ state: Int32) -> UInt64 { UInt64(UInt32(bitPattern: info[Int(CPU_STATE_MAX) * cpu + Int(state)])) }
+        return CPUTicks(user: tick(CPU_STATE_USER), system: tick(CPU_STATE_SYSTEM), idle: tick(CPU_STATE_IDLE), nice: tick(CPU_STATE_NICE))
+    }
+}
+
+// MARK: - 面板里的图
+
+/// "0xAARRGGBB" → CGColor（alpha 给了就用给的）
+func cgColor(_ hex: String, alpha: CGFloat? = nil) -> CGColor {
+    let value = UInt32(hex.dropFirst(2), radix: 16) ?? 0xffff_ffff
+    func channel(_ shift: UInt32) -> CGFloat { CGFloat((value >> shift) & 0xff) / 255 }
+    return CGColor(srgbRed: channel(16), green: channel(8), blue: channel(0), alpha: alpha ?? channel(24))
+}
+
+/// 画一张 2 倍分辨率的 PNG 写到 path（单位 pt，原点在左下角；文字用 AppKit 画）。SketchyBar 把它当一行的背景图，缩成一半显示
+func writePNG(_ path: String, width: CGFloat, height: CGFloat, _ draw: (CGContext) -> Void) {
+    let scale: CGFloat = 2
+    guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+          let context = CGContext(data: nil, width: Int(width * scale), height: Int(height * scale), bitsPerComponent: 8,
+                                  bytesPerRow: 0, space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+    context.scaleBy(x: scale, y: scale)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+    draw(context)
+    NSGraphicsContext.restoreGraphicsState()
+    guard let image = context.makeImage(),
+          let destination = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, "public.png" as CFString, 1, nil)
+    else { return }
+    CGImageDestinationAddImage(destination, image, nil)
+    CGImageDestinationFinalize(destination)
+}
+
+/// 一段段不同颜色的文字（面板的字体，数字等宽）
+func legendText(_ parts: [(String, String)], size: CGFloat = 11) -> NSAttributedString {
+    let text = NSMutableAttributedString()
+    for (string, color) in parts {
+        text.append(NSAttributedString(string: string, attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .regular),
+            .foregroundColor: NSColor(cgColor: cgColor(color)) ?? .white,
+        ]))
+    }
+    return text
 }
 
 // MARK: - 进程
@@ -399,8 +506,12 @@ final class BarStats {
     let sketchybar = "/opt/homebrew/bin/sketchybar"
     let hoverFile = "/tmp/yabai-aero-\(NSUserName())/bar-hover"
     /// CPU、GPU 最近的利用率（0–1），最多 historyLength 个点 = 弹出面板里曲线的宽度（sketchybarrc：POPUP_WIDTH - 28）。
+    /// 内存面板的面积图也存在这里：mem.app、mem.wired、mem.compressed，各占物理内存的比例（0–1）。
     /// 重新加载 SketchyBar 时这个进程会被停掉、曲线也会清零：停掉前存进 historyFile，新进程启动时读回来补上
     var history: [String: [Double]] = ["cpu": [], "gpu": []]
+    let memoryLayers = [("mem.compressed", orange), ("mem.wired", cyan), ("mem.app", green)]   // 面积图从下往上叠的顺序和颜色
+    /// 面板里画的图的宽度（sketchybarrc：POPUP_WIDTH - 2 × POPUP_PAD）
+    let chartWidth: CGFloat = 268
     let historyLength = 272
     // 存原始值（中间有一版存的是平滑过的，用的是别的文件名，不读）
     let historyFile = "/tmp/yabai-aero-\(NSUserName())/bar-history-raw.json"
@@ -419,6 +530,10 @@ final class BarStats {
 
     // 上一次采样，用来算这 2 秒的变化
     var lastCPU = cpuTicks()
+    var lastCores = coreTicks()
+    lazy var cores = coreGroups(count: lastCores.count)
+    var coreUsage: [Double] = []   // 每个逻辑 CPU 这 2 秒的使用率（0–1）
+    var imageTurn: [String: Int] = [:]
     var lastNet: (name: String, bytes: (received: UInt32, sent: UInt32), time: Date)?
     var lastDiskIO = (bytes: diskIOBytes(), time: Date())
 
@@ -502,6 +617,7 @@ final class BarStats {
             history[item] = values
             if !values.isEmpty { args += ["--push", item] + values.map { String(format: "%.3f", $0) } }
         }
+        for (item, _) in memoryLayers { history[item] = Array((saved[item] ?? []).suffix(historyLength)) }
         send(args)
     }
 
@@ -580,8 +696,21 @@ final class BarStats {
         let cpuLine = record("cpu", cpuPercent / 100)
         args += ["--push", "cpu", String(format: "%.3f", cpuLine), "--set", "cpu", percentLabel(cpuPercent)]
 
-        let memPercent = memoryInfo().used / memoryTotal * 100
+        let coresNow = coreTicks()
+        if coresNow.count == lastCores.count {
+            coreUsage = zip(coresNow, lastCores).map { now, last in
+                guard now.total > last.total, now.busy >= last.busy else { return 0 }
+                return min(Double(now.busy - last.busy) / Double(now.total - last.total), 1)
+            }
+        }
+        lastCores = coresNow
+
+        let memory = memoryInfo()
+        let memPercent = memory.used / memoryTotal * 100
         args += ["--set", "mem", percentLabel(memPercent)]
+        record("mem.app", memory.app / memoryTotal)
+        record("mem.wired", memory.wired / memoryTotal)
+        record("mem.compressed", memory.compressed / memoryTotal)
 
         if let gpu = gpuInfo() {
             let gpuLine = record("gpu", Double(gpu.utilization) / 100)
@@ -735,6 +864,121 @@ final class BarStats {
         }
     }
 
+    /// 面板里的图画到哪个文件：两个文件轮着用，路径变了 SketchyBar 才会重新读图
+    func imagePath(_ name: String) -> String {
+        let turn = (imageTurn[name] ?? 0) ^ 1
+        imageTurn[name] = turn
+        return "/tmp/yabai-aero-\(NSUserName())/\(name)-\(turn).png"
+    }
+
+    /// CPU 面板里每个核心的使用率：一核一根柱子，性能核在左（深蓝）、能效核在右（浅蓝），
+    /// 下面一行写每种核有几个、平均用了多少。核多的机器柱子自动变窄
+    func coresImage() -> String {
+        let path = imagePath("cpu-cores")
+        let groups = cores.filter { !$0.cpus.isEmpty }
+        // 从下往上：底下留 2、图例 14、间隔 8、柱子 30、顶上留 4（和上一行的文字隔开）
+        let width = chartWidth, bottom: CGFloat = 2, legendHeight: CGFloat = 14, gap: CGFloat = 8, barHeight: CGFloat = 30, top: CGFloat = 4
+        let n = CGFloat(groups.reduce(0) { $0 + $1.cpus.count }), k = CGFloat(groups.count), groupGap: CGFloat = 12
+        // 柱间距约为柱宽的 0.35，限制在 2–8 pt：核少时柱子不会隔得太开，核多时间距也看得见
+        let spacing = min(8, max(2, 0.35 * (width - groupGap * (k - 1)) / (n + 0.35 * (n - k))))
+        let bar = (width - groupGap * (k - 1) - spacing * (n - k)) / n
+        let radius = min(4, bar / 2)
+        func usage(_ cpu: Int) -> Double { cpu < coreUsage.count ? coreUsage[cpu] : 0 }
+        func color(_ index: Int) -> CGColor {   // 第一组深、最后一组浅，中间的按比例
+            let t = groups.count > 1 ? CGFloat(index) / CGFloat(groups.count - 1) : 0
+            let from = cgColor(blue).components ?? [], to = cgColor(lightBlue).components ?? []
+            guard from.count >= 3, to.count >= 3 else { return cgColor(blue) }
+            return CGColor(srgbRed: from[0] + (to[0] - from[0]) * t, green: from[1] + (to[1] - from[1]) * t,
+                           blue: from[2] + (to[2] - from[2]) * t, alpha: 1)
+        }
+        writePNG(path, width: width, height: bottom + legendHeight + gap + barHeight + top) { context in
+            var x: CGFloat = 0
+            for (index, group) in groups.enumerated() {
+                for cpu in group.cpus {
+                    // 边缘对齐到半个 pt（2 倍图上的整像素），柱子才清楚
+                    let left = (x * 2).rounded() / 2, right = ((x + bar) * 2).rounded() / 2
+                    let rect = CGRect(x: left, y: bottom + legendHeight + gap, width: right - left, height: barHeight)
+                    let shape = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+                    context.addPath(shape)
+                    context.setFillColor(cgColor("0x17ffffff"))
+                    context.fillPath()
+                    context.saveGState()
+                    context.addPath(shape)
+                    context.clip()
+                    context.setFillColor(color(index))
+                    context.fill(CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height * usage(cpu)))
+                    context.restoreGState()
+                    x += bar + spacing
+                }
+                x += groupGap - spacing
+            }
+            // 图例：● 性能核 ×4  23%。两组时一左一右；三组以上在整行里均匀排开。放不下就不写个数
+            let dot: CGFloat = 6, dotGap: CGFloat = 5
+            func legends(withCount: Bool) -> [NSAttributedString] {
+                groups.map { group in
+                    let average = group.cpus.map(usage).reduce(0, +) / Double(group.cpus.count) * 100
+                    return legendText([(withCount ? "\(group.name) ×\(group.cpus.count)" : group.name, secondary),
+                                       (String(format: "  %.0f%%", average), foreground)])
+                }
+            }
+            func totalWidth(_ texts: [NSAttributedString]) -> CGFloat {
+                texts.reduce(0) { $0 + dot + dotGap + $1.size().width } + 12 * CGFloat(texts.count - 1)
+            }
+            var texts = legends(withCount: true)
+            if totalWidth(texts) > width { texts = legends(withCount: false) }
+            let spread = groups.count > 1 ? max(12, (width - totalWidth(texts) + 12 * CGFloat(texts.count - 1)) / CGFloat(texts.count - 1)) : 0
+            var left: CGFloat = 0
+            for (index, text) in texts.enumerated() {
+                context.setFillColor(color(index))
+                context.fillEllipse(in: CGRect(x: left, y: bottom + (legendHeight - dot) / 2, width: dot, height: dot))
+                text.draw(at: CGPoint(x: left + dot + dotGap, y: bottom + (legendHeight - text.size().height) / 2))
+                left += dot + dotGap + text.size().width + spread
+            }
+        }
+        return path
+    }
+
+    /// 内存面板的面积图：被压缩、联动内存、App 内存从下往上叠（和活动监视器"已使用内存"的三部分一样），
+    /// 纵轴是物理内存的总量，最上面的边就是已使用的比例。和 CPU 的曲线一样约 9 分钟、同样平滑过，最新的在右边
+    func memoryImage() -> String {
+        let path = imagePath("mem-chart")
+        let width = chartWidth, height: CGFloat = 40
+        let series = memoryLayers.map { smoothedHistory(Array((history[$0.0] ?? []).suffix(historyLength))) }
+        let count = series.map(\.count).min() ?? 0
+        writePNG(path, width: width, height: height) { context in
+            let frame = CGPath(roundedRect: CGRect(x: 0, y: 0, width: width, height: height), cornerWidth: 4, cornerHeight: 4, transform: nil)
+            context.addPath(frame)
+            context.setFillColor(cgColor("0x14ffffff"))
+            context.fillPath()
+            guard count > 1 else { return }
+            context.addPath(frame)
+            context.clip()
+            let step = width / CGFloat(historyLength - 1)
+            let xs = (0..<count).map { width - CGFloat(count - 1 - $0) * step }
+            var below = [CGFloat](repeating: 0, count: count), edges: [[CGPoint]] = []
+            for values in series {
+                let top = (0..<count).map { below[$0] + CGFloat(values[values.count - count + $0]) * height }
+                let area = CGMutablePath()
+                area.addLines(between: (0..<count).map { CGPoint(x: xs[$0], y: top[$0]) }
+                    + (0..<count).reversed().map { CGPoint(x: xs[$0], y: below[$0]) })
+                area.closeSubpath()
+                context.addPath(area)
+                context.setFillColor(cgColor(memoryLayers[edges.count].1, alpha: 0.5))
+                context.fillPath()
+                edges.append((0..<count).map { CGPoint(x: xs[$0], y: top[$0]) })
+                below = top
+            }
+            context.setLineWidth(1)
+            context.setLineJoin(.round)
+            for (edge, layer) in zip(edges, memoryLayers) {
+                context.addLines(between: edge)
+                context.setStrokeColor(cgColor(layer.1))
+                context.strokePath()
+            }
+        }
+        return path
+    }
+
     /// 某一项弹出面板各行的内容（sketchybar --set 参数）
     func details(_ item: String) -> [String] {
         var args: [String] = []
@@ -775,17 +1019,18 @@ final class BarStats {
             getloadavg(&load, 3)
             row("load", String(format: "%.2f  %.2f  %.2f", load[0], load[1], load[2]))
             row("uptime", durationText(minutes: Int(ProcessInfo.processInfo.systemUptime / 60)))
+            args += ["--set", "cpu.cores", "background.image=\(coresImage())"]
             top(processes().sorted { $0.cpu > $1.cpu }) { String(format: "%.1f%%", $0.cpu) }
 
         case "mem":
             let memory = memoryInfo(), swap = swapUsage(), pressure = memoryPressure()
             let percent = memory.used / memoryTotal * 100
-            args += ["--set", "mem.bar", "slider.percentage=\(Int(percent))",
-                     "slider.highlight_color=\(percent >= 90 ? red : percent >= 75 ? yellow : green)"]
+            args += ["--set", "mem.chart", "background.image=\(memoryImage())"]
             row("used", String(format: "%@（%.0f%%）", memoryText(memory.used), percent), color: levelColor(percent, warn: 75, alert: 90))
-            row("app", memoryText(memory.app))
-            row("wired", memoryText(memory.wired))
-            row("compressed", memoryText(memory.compressed))
+            // 这三项的数字用面积图里对应的颜色，当图例（和活动监视器 CPU 那页的"系统""用户"一样）
+            row("app", memoryText(memory.app), color: green)
+            row("wired", memoryText(memory.wired), color: cyan)
+            row("compressed", memoryText(memory.compressed), color: orange)
             row("cached", memoryText(memory.cached))
             row("swap", swap.total > 0 ? "\(memoryText(swap.used)) / \(memoryText(swap.total))" : "未使用")
             row("pressure", pressure.text, color: pressure.color)

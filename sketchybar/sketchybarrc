@@ -185,6 +185,14 @@ popup_graph() { # <项> <行> <颜色> <填充色>：最近约 9 分钟的曲线
             graph.color="$3" graph.fill_color="$4" graph.line_width=1.5
 }
 
+popup_image() { # <项> <行> <高>：aero-helper bar-stats 画的图（2 倍分辨率的 PNG 缩成一半，宽 POPUP_WIDTH - 2 × POPUP_PAD），
+                # 面板开着时每 2 秒换一张。CPU 的各核心柱状图、内存的面积图
+    sketchybar --add item "$1.$2" "popup.$1" \
+        --set "$1.$2" width=$POPUP_WIDTH icon.drawing=off label.drawing=off \
+            background.drawing=on background.color=0x00000000 background.height="$3" \
+            background.image.scale=0.5 background.image.padding_left=$POPUP_PAD
+}
+
 popup_hint() { # <项> <文字>：一行灰色的操作提示
     sketchybar --add item "$1.hint" "popup.$1" \
         --set "$1.hint" width=$POPUP_WIDTH icon.drawing=off label="$2" label.font="$POPUP_FONT:Regular:11.0" \
@@ -285,7 +293,7 @@ sketchybar --add item mem right \
         script="$PLUGINS/hover.sh"
 popup mem
 popup_title mem 󰍛 $BAR_GREEN
-popup_bar mem bar
+popup_image mem chart 40
 popup_rows mem used=已使用 "app=App 内存" wired=联动内存 compressed=被压缩 cached=缓存文件 swap=交换 pressure=内存压力
 popup_top mem
 
@@ -306,6 +314,7 @@ popup cpu
 popup_title cpu 󰻠 $BAR_BLUE
 popup_graph cpu history $BLUE $BLUE_FILL
 popup_rows cpu user=用户 system=系统 idle=空闲 load=平均负载 uptime=已开机
+popup_image cpu cores 58
 popup_top cpu
 
 # ---- GPU ----
