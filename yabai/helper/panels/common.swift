@@ -23,7 +23,7 @@ let green = color(0xff98c379), yellow = color(0xffe5c07b), red = color(0xffe06c7
 // 尺寸和 sketchybarrc 的 POPUP_WIDTH / POPUP_PAD / HL_INSET、backdrop.swift 的 panelRadius / panelInset 一样
 let panelWidth: CGFloat = 300, pad: CGFloat = 16, hlInset: CGFloat = 8, radius: CGFloat = 12, vInset: CGFloat = 8
 // valueColumn：数值那一栏从 pad 往右多远开始，加上 pad 就是 sketchybarrc 里名称那一栏的宽度（icon.width=110）
-let rowHeight: CGFloat = 26, valueColumn: CGFloat = 94, listMaxRows = 8
+let rowHeight: CGFloat = 26, valueColumn: CGFloat = 94
 
 /// 顶栏的主题（color / mono），黑白主题下标题的图标也是白的
 var barTheme: String { UserDefaults(suiteName: "fantastic-i3.sketchybar")?.string(forKey: "theme") ?? "color" }
@@ -387,16 +387,18 @@ class BarPanel: NSObject {
         prepareLayout()
         stack.layoutSubtreeIfNeeded()
         let height = stack.fittingSize.height
-        let mainHeight = NSScreen.screens.first?.frame.height ?? 0
         var left = anchorLeft
-        if let screen = NSScreen.screens.first(where: { $0.frame.minX <= anchorLeft && anchorLeft < $0.frame.maxX }) {
-            left = min(left, screen.frame.maxX - panelWidth - 6)
-        }
-        panel.setFrame(NSRect(x: left, y: mainHeight - anchorTop - height, width: panelWidth, height: height), display: true)
+        if let screen = anchorScreen { left = min(left, screen.frame.maxX - panelWidth - 6) }
+        panel.setFrame(NSRect(x: left, y: panelTop - height, width: panelWidth, height: height), display: true)
         panel.invalidateShadow()
     }
 
-    /// 列表放进能滚动的框里：超过 listMaxRows 行就滚动
+    /// 锚点所在的屏；面板上边的 y（屏幕坐标，左下角为原点）
+    var anchorScreen: NSScreen? { NSScreen.screens.first(where: { $0.frame.minX <= anchorLeft && anchorLeft < $0.frame.maxX }) }
+    var panelTop: CGFloat { (NSScreen.screens.first?.frame.height ?? 0) - anchorTop }
+
+    /// 列表放进能滚动的框里。不要滚动条：列表多长面板就多长，
+    /// 长到屏幕底下（程序坞上面）放不下了才滚动，触控板、滚轮照样能滚，只是不显示滚动条
     func makeScroll(_ list: FlippedStack, _ scroll: NSScrollView) -> NSLayoutConstraint {
         list.orientation = .vertical
         list.alignment = .leading
@@ -404,9 +406,7 @@ class BarPanel: NSObject {
         list.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = list
         scroll.drawsBackground = false
-        scroll.hasVerticalScroller = true
-        scroll.autohidesScrollers = true
-        scroll.scrollerStyle = .overlay
+        scroll.hasVerticalScroller = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
         add(scroll)
         let height = scroll.heightAnchor.constraint(equalToConstant: rowHeight)
@@ -417,7 +417,13 @@ class BarPanel: NSObject {
 
     func fitScroll(_ list: FlippedStack, _ height: NSLayoutConstraint) {
         list.layoutSubtreeIfNeeded()
-        height.constant = max(min(list.fittingSize.height, CGFloat(listMaxRows) * rowHeight), rowHeight)
+        stack.layoutSubtreeIfNeeded()
+        var room = CGFloat.greatestFiniteMagnitude
+        if let screen = anchorScreen {
+            let others = stack.fittingSize.height - height.constant   // 面板里列表以外的部分
+            room = panelTop - screen.visibleFrame.minY - 6 - others
+        }
+        height.constant = max(min(list.fittingSize.height, room), rowHeight)
     }
 
     func addToList(_ list: FlippedStack, _ view: NSView) {
