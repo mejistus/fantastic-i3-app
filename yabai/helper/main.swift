@@ -46,6 +46,7 @@
 //       给 SketchyBar 送数据（常驻，由 sketchybarrc 启动）：每隔几秒（默认 2）推一次 CPU、内存、
 //       GPU（利用率和占用的内存）、网速，磁盘每 30 秒一次；切换输入法时立刻推输入法。SketchyBar 不在了就退出。
 //   aero-helper apple-menu <JSON：栏上  的位置>
+//   aero-helper process-menu <bar-top-<项>.json> <第几行>   面板里的进程排行：弹菜单退出那个进程（bar.swift 的 ProcessMenu）
 //       SketchyBar 的苹果菜单：弹一个真正的系统菜单，打印选中的那一行（about、settings……），没选退出码 1（见"苹果菜单"）。
 //   aero-helper lock
 //       锁屏（和 ⌃⌘Q 一样，login.framework 的 SACLockScreenImmediate）。SketchyBar 的苹果菜单用。
@@ -247,6 +248,34 @@ func watchAppActivation(aero: String) -> Never {
     }
     RunLoop.main.run()
     exit(0)
+}
+
+// MARK: - 常驻进程只留一个
+
+/// bar-stats、bar-backdrop 同时只留一个，留最新启动的：sketchybarrc 两次加载挨得很近时（fantastic-i3 setup 里就会），
+/// 第一次起的赶在第二次的 pkill 之后才启动，就会多出一个（两层磨砂、两份推送）。比启动时间：自己最新就停掉别的，
+/// 有更新的就自己退出。只找 "<自己的路径> <模式>" 开头的命令行，不会碰到命令里恰好带着这几个字的 shell
+func keepNewest(_ mode: String) {
+    signal(SIGUSR1, SIG_IGN)   // 后面各自接上处理；在那之前收到也不会被默认动作结束
+    signal(SIGUSR2, SIG_IGN)
+    func started(_ pid: pid_t) -> Double {
+        var info = proc_bsdinfo()
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0 else { return 0 }
+        return Double(info.pbi_start_tvsec) + Double(info.pbi_start_tvusec) / 1_000_000
+    }
+    let pgrep = Process()
+    pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+    pgrep.arguments = ["-f", "^\(CommandLine.arguments[0]) \(mode)"]
+    let pipe = Pipe()
+    pgrep.standardOutput = pipe
+    guard (try? pgrep.run()) != nil else { return }
+    let output = pipe.fileHandleForReading.readDataToEndOfFile()
+    pgrep.waitUntilExit()
+    let me = getpid(), mine = started(me)
+    for pid in String(decoding: output, as: UTF8.self).split(separator: "\n").compactMap({ pid_t($0) }) where pid != me {
+        if started(pid) > mine { exit(0) }
+        kill(pid, SIGTERM)
+    }
 }
 
 // MARK: - 苹果菜单
@@ -829,8 +858,13 @@ case "input-source":
 case "ordered-out":
     orderedOut(arguments.dropFirst().compactMap { UInt32($0) }).forEach { print($0) }
 case "bar-stats":
+    keepNewest("bar-stats")
     let stats = BarStats()   // 要留着强引用：定时器和通知的回调用的是 weak self
     stats.run(interval: Double(arguments.dropFirst().first ?? "") ?? 2)
+case "process-menu":
+    NSApplication.shared.setActivationPolicy(.accessory)
+    let menu = ProcessMenu()   // 要留着强引用：菜单项的 target 是弱引用
+    menu.show(file: arguments.dropFirst().first ?? "", index: Int(arguments.dropFirst(2).first ?? "") ?? -1)
 case "apple-menu":
     let json = (try? JSONSerialization.jsonObject(with: Data((arguments.dropFirst().first ?? "[]").utf8))) as? [[String: Any]] ?? []
     let rects = json.compactMap { entry -> CGRect? in
@@ -848,6 +882,7 @@ case "lock":
     typealias LockScreen = @convention(c) () -> Int32
     exit(unsafeBitCast(symbol, to: LockScreen.self)() == 0 ? 0 : 1)
 case "bar-backdrop":
+    keepNewest("bar-backdrop")
     let backdrop = BarBackdrop()   // 同上，要留着强引用
     backdrop.run()
 case "toast":
@@ -871,6 +906,6 @@ case "switcher":
     app.delegate = switcher
     app.run()
 default:
-    FileHandle.standardError.write("用法：aero-helper step left|right | wait-release <修饰键> <秒> | native-hotkeys on|off | switcher [选项] | app-names <bundle id> | default-browser | option-fn <命令> | app-watch <aero> | date <模板> | input-source | ordered-out <窗口id>... | bar-stats [秒] | bar-backdrop | apple-menu <位置> | lock\n".data(using: .utf8)!)
+    FileHandle.standardError.write("用法：aero-helper step left|right | wait-release <修饰键> <秒> | native-hotkeys on|off | switcher [选项] | app-names <bundle id> | default-browser | option-fn <命令> | app-watch <aero> | date <模板> | input-source | ordered-out <窗口id>... | bar-stats [秒] | bar-backdrop | apple-menu <位置> | process-menu <列表> <行> | lock\n".data(using: .utf8)!)
     exit(2)
 }

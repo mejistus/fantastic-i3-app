@@ -6,6 +6,7 @@
 #   点面板的标题行（<项>.title，最右边有个 ↗，鼠标移上去变亮）：打开对应的应用或设置页
 #     （记一行到 aero.log，点了没反应时可以查）。
 #   音量面板里点"静音"那一行：静音 / 取消静音。
+#   内存面板里点进程排行的一行：弹系统菜单，退出 / 强制退出这个进程（aero-helper process-menu）。
 # 有自己脚本的项（音量、电池、日期）在它们的脚本里把点击转给这里。网速拆成了 net / net.rx / net.tx 三块，都按 net 处理。
 STATE="/tmp/yabai-aero-$USER"
 HELPER="$HOME/.cache/fantastic-i3/aero-helper"
@@ -72,6 +73,17 @@ case "$NAME" in
         (sleep 0.15; sketchybar --set "$NAME" background.color=$HOVER) &
         osascript -e 'set volume output muted (not (output muted of (get volume settings)))'
         pkill -USR1 -f "^$HELPER bar-stats"   # 马上刷新面板
+        ;;
+    *.top.*)   # 进程排行的一行：bar-stats 把显示的进程写在 bar-top-<项>.json，菜单从那里读名字和进程号、自己执行退出。
+               # 菜单开着时有 bar-menu 这个文件，bar-stats 就不因为鼠标在面板外（菜单上）把面板收起
+        touch "$STATE/bar-menu"
+        result=$("$HELPER" process-menu "$STATE/bar-top-$ITEM.json" "${NAME##*.}")
+        rm -f "$STATE/bar-menu"
+        sketchybar --set "$NAME" background.color=0x00000000
+        [ -n "$result" ] || exit 0
+        "$AERO" log "顶栏退出进程：$result"
+        sleep 0.5   # 等进程退出，再让 bar-stats 马上重算排行
+        pkill -USR1 -f "^$HELPER bar-stats"
         ;;
     *.title)
         sketchybar --set "$NAME" background.color=0x00000000 background.image="$CONFIG_DIR/icons/open.png"

@@ -150,7 +150,7 @@ Click an item on the right for a detail panel; click again or move away to close
 | Panel | Shows |
 |---|---|
 | GPU, CPU | A larger history graph. CPU also shows a bar for every core, performance cores on the left and efficiency cores on the right, and lists the top 5 processes |
-| Memory | A stacked graph of app memory, wired memory and compressed memory, the three parts of "Memory Used" in Activity Monitor, then the breakdown and the top 5 processes |
+| Memory | A stacked graph of app memory, wired memory and compressed memory, the three parts of "Memory Used" in Activity Monitor, then the breakdown and the top 5 processes. Click a process to quit or force quit it |
 | Disk | A usage bar and breakdown |
 | Network | Speeds, IP, router, Wi-Fi signal, rate and channel, then nearby Wi-Fi with a search box. Click a network to expand it: security, account (enterprise networks) and password fields, Forget and Connect / Disconnect |
 | Bluetooth | An on / off switch and your paired devices, connected ones first with their battery when the device reports it. Click a device to expand it: type, address, battery, Forget and Connect / Disconnect |

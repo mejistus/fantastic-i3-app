@@ -235,13 +235,15 @@ struct ProcessUsage {
     let name: String
     var cpu: Double      // %，可以超过 100（多核）
     var memory: Double   // 字节（常驻内存）
+    var pids: [pid_t] = []
+    var mine: [pid_t] = []   // 其中自己（当前用户）的，只有这些能退出
 }
 
 /// 按进程名合并（同名的多个进程加在一起）
 func processUsage() -> [ProcessUsage] {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/ps")
-    process.arguments = ["-Aceo", "pcpu=,rss=,comm="]
+    process.arguments = ["-Aceo", "pid=,uid=,pcpu=,rss=,comm="]
     let pipe = Pipe()
     process.standardOutput = pipe
     process.standardError = FileHandle.nullDevice
@@ -249,12 +251,18 @@ func processUsage() -> [ProcessUsage] {
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()
     var byName: [String: ProcessUsage] = [:]
+    let me = getuid()
     for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
-        let parts = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
-        guard parts.count == 3, let cpu = Double(parts[0]), let rss = Double(parts[1]) else { continue }
-        let name = String(parts[2])
-        byName[name, default: ProcessUsage(name: name, cpu: 0, memory: 0)].cpu += cpu
-        byName[name, default: ProcessUsage(name: name, cpu: 0, memory: 0)].memory += rss * 1024
+        let parts = line.split(separator: " ", maxSplits: 4, omittingEmptySubsequences: true)
+        guard parts.count == 5, let pid = pid_t(parts[0]), let uid = uid_t(parts[1]),
+              let cpu = Double(parts[2]), let rss = Double(parts[3]) else { continue }
+        let name = String(parts[4])
+        var usage = byName[name] ?? ProcessUsage(name: name, cpu: 0, memory: 0)
+        usage.cpu += cpu
+        usage.memory += rss * 1024
+        usage.pids.append(pid)
+        if uid == me { usage.mine.append(pid) }
+        byName[name] = usage
     }
     return Array(byName.values)
 }
@@ -500,11 +508,76 @@ func formatted(_ date: Date, _ template: String) -> String {
     return formatter.string(from: date)
 }
 
+// MARK: - 退出进程
+
+/// 面板里点进程排行的一行：在鼠标处弹系统菜单，退出 / 强制退出这一行的进程（同名的几个一起，和活动监视器的"退出"一样）。
+/// 应用先按正常的方式退出（和 ⌘Q 一样，没存的文稿会问），不是应用的发 SIGTERM；强制退出是 forceTerminate / SIGKILL。
+/// 只动自己（当前用户）的进程；loginwindow（退出就注销）和 fantastic-i3 自己的进程不给退，菜单里写明原因
+final class ProcessMenu: NSObject {
+    var chosen: String?
+    /// 退出会出事的：loginwindow 一退就注销；后面这些是栏和平铺本身（停掉用 fantastic-i3 stop）
+    let protected = ["loginwindow": "退出它会注销当前用户",
+                     "sketchybar": "fantastic-i3 的组件", "yabai": "fantastic-i3 的组件", "skhd": "fantastic-i3 的组件",
+                     "aero-helper": "fantastic-i3 的组件", "fantastic-i3-wifi": "fantastic-i3 的组件",
+                     "fantastic-i3-bluetooth": "fantastic-i3 的组件"]
+
+    @objc func pick(_ sender: NSMenuItem) { chosen = sender.representedObject as? String }
+
+    /// file：bar-stats 写的 bar-top-<项>.json；index：点的是第几行
+    func show(file: String, index: Int) {
+        guard let data = FileManager.default.contents(atPath: file),
+              let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]], list.indices.contains(index),
+              let name = list[index]["name"] as? String else { return }
+        let pids = list[index]["pids"] as? [Int] ?? [], mine = (list[index]["mine"] as? [Int] ?? []).map { pid_t($0) }
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        func info(_ title: String, bold: Bool = false) {
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            if bold { item.attributedTitle = NSAttributedString(string: title, attributes: [.font: NSFont.menuFont(ofSize: 0).bold]) }
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+        func action(_ title: String, _ name: String) {
+            let item = NSMenuItem(title: title, action: #selector(pick), keyEquivalent: "")
+            item.target = self
+            item.representedObject = name
+            menu.addItem(item)
+        }
+        info(name, bold: true)
+        info(list[index]["summary"] as? String ?? "")
+        menu.addItem(.separator())
+        if let reason = protected[name] {
+            info("不能在这里退出：\(reason)")
+        } else if mine.isEmpty {
+            info("系统进程，不能在这里退出")
+        } else {
+            if mine.count < pids.count { info("其中 \(pids.count - mine.count) 个是系统进程，不会退出") }
+            action(mine.count > 1 ? "退出这 \(mine.count) 个进程" : "退出", "quit")
+            action("强制退出", "force")
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+        guard let chosen else { return }
+        for pid in mine {
+            if let app = NSRunningApplication(processIdentifier: pid),
+               chosen == "force" ? app.forceTerminate() : app.terminate() { continue }
+            kill(pid, chosen == "force" ? SIGKILL : SIGTERM)
+        }
+        print("\(chosen) \(name) \(mine.count)")
+    }
+}
+
+extension NSFont {
+    var bold: NSFont { NSFontManager.shared.convert(self, toHaveTrait: .boldFontMask) }
+}
+
 // MARK: - 推送
 
 final class BarStats {
     let sketchybar = "/opt/homebrew/bin/sketchybar"
     let hoverFile = "/tmp/yabai-aero-\(NSUserName())/bar-hover"
+    /// 面板里弹出的系统菜单（退出进程）开着时有这个文件（plugins/hover.sh 建、删）：鼠标在菜单上，不算离开面板
+    let menuFile = "/tmp/yabai-aero-\(NSUserName())/bar-menu"
     /// CPU、GPU 最近的利用率（0–1），最多 historyLength 个点 = 弹出面板里曲线的宽度（sketchybarrc：POPUP_WIDTH - 28）。
     /// 内存面板的面积图也存在这里：mem.app、mem.wired、mem.compressed，各占物理内存的比例（0–1）。
     /// 重新加载 SketchyBar 时这个进程会被停掉、曲线也会清零：停掉前存进 historyFile，新进程启动时读回来补上
@@ -557,6 +630,7 @@ final class BarStats {
         signalSource = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
         signalSource?.setEventHandler { [weak self] in
             guard let self, let item = self.hovered() else { return }
+            self.processCache = nil   // 刚打开面板、刚退出了进程：进程排行重新算
             self.send(self.details(item))
             self.watchPopup(item)
         }
@@ -851,7 +925,7 @@ final class BarStats {
             return
         }
         let location = CGEvent(source: nil)?.location ?? .zero
-        if current.area.contains(location) {
+        if current.area.contains(location) || FileManager.default.fileExists(atPath: menuFile) {
             popup?.outsideSince = nil
         } else if let since = current.outsideSince {
             if Date().timeIntervalSince(since) >= 0.3 {
@@ -988,8 +1062,16 @@ final class BarStats {
         func hide(_ name: String, _ hidden: Bool) {
             args += ["--set", "\(item).\(name)", "drawing=\(hidden ? "off" : "on")"]
         }
-        /// 进程排行的五行：图标位置放进程名，值放用量
+        /// 进程排行的五行：图标位置放进程名，值放用量。显示的这几个进程另外写进 bar-top-<项>.json，
+        /// 点一行时 aero-helper process-menu 从这里读名字和进程号（ProcessMenu）
         func top(_ processes: [ProcessUsage], _ value: (ProcessUsage) -> String) {
+            let shown = processes.prefix(5).map { process -> [String: Any] in
+                ["name": process.name, "pids": process.pids, "mine": process.mine,
+                 "summary": "\(process.pids.count) 个进程 · \(memoryText(process.memory)) · \(String(format: "%.1f%%", process.cpu)) CPU"]
+            }
+            if let data = try? JSONSerialization.data(withJSONObject: shown) {
+                try? data.write(to: URL(fileURLWithPath: "/tmp/yabai-aero-\(NSUserName())/bar-top-\(item).json"))
+            }
             for i in 0..<5 {
                 if i < processes.count {
                     let name = processes[i].name.count > 20 ? String(processes[i].name.prefix(19)) + "…" : processes[i].name

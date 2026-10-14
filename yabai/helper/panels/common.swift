@@ -22,7 +22,8 @@ let green = color(0xff98c379), yellow = color(0xffe5c07b), red = color(0xffe06c7
 
 // 尺寸和 sketchybarrc 的 POPUP_WIDTH / POPUP_PAD / HL_INSET、backdrop.swift 的 panelRadius / panelInset 一样
 let panelWidth: CGFloat = 300, pad: CGFloat = 16, hlInset: CGFloat = 8, radius: CGFloat = 12, vInset: CGFloat = 8
-let rowHeight: CGFloat = 26, valueColumn: CGFloat = 110, listMaxRows = 8
+// valueColumn：数值那一栏从 pad 往右多远开始，加上 pad 就是 sketchybarrc 里名称那一栏的宽度（icon.width=110）
+let rowHeight: CGFloat = 26, valueColumn: CGFloat = 94, listMaxRows = 8
 
 /// 顶栏的主题（color / mono），黑白主题下标题的图标也是白的
 var barTheme: String { UserDefaults(suiteName: "fantastic-i3.sketchybar")?.string(forKey: "theme") ?? "color" }
@@ -77,11 +78,13 @@ final class InfoRow: NSView {
         fixedHeight(self, rowHeight)
         addSubview(name)
         addSubview(value)
+        // 和系统设置的表单一样：名称靠左，数值靠右（右边离边缘 pad，和分隔线、搜索框对齐），太长就在数值栏的起点截断
+        value.alignment = .right
         NSLayoutConstraint.activate([
             name.leadingAnchor.constraint(equalTo: leadingAnchor, constant: pad),
             name.centerYAnchor.constraint(equalTo: centerYAnchor),
-            value.leadingAnchor.constraint(equalTo: leadingAnchor, constant: pad + valueColumn),
-            value.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -pad),
+            value.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: pad + valueColumn),
+            value.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -pad),
             value.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }
