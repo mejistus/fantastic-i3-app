@@ -272,12 +272,17 @@ final class BarBackdrop {
         }
     }
 
+    /// SketchyBar（2.24.1）设 topmost 时先按旧值重新排栏的位置、再记下新值（bar_manager_set_topmost 里 reset 在赋值前面），
+    /// 而 topmost=off、系统菜单栏又常显时，它把栏排在菜单栏下面（往下一个菜单栏高，bar.c 的 bar_get_frame）。所以：
+    ///   降下去（off）发一次：按旧的 on 排，栏还在顶上（没被盖住的别的屏上，栏也不会往下挪）；
+    ///   升回来（on）发两次：第一次按旧的 off 排（往下错 24），第二次按 on 排回顶上。
+    /// 以前只发一次，放映结束后栏上的各项一直往下错 24，压在窗口的标题栏上
     func setTopmost() {
-        let value = lowered ? "off" : "on"
+        let arguments = lowered ? ["--bar", "topmost=off"] : ["--bar", "topmost=on", "--bar", "topmost=on"]
         work.async { [sketchybar] in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: sketchybar)
-            process.arguments = ["--bar", "topmost=\(value)"]
+            process.arguments = arguments
             try? process.run()
             process.waitUntilExit()
         }
