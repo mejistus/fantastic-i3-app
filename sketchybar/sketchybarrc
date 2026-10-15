@@ -30,6 +30,8 @@ pkill -f "^$HELPER bar-backdrop" 2>/dev/null
 # 高度和系统菜单栏一样（没有刘海的屏幕上是 24），正好盖住它。
 # 底色不用 SketchyBar 的 blur_radius（macOS 15 上没效果），而是栏下面垫一条底板（aero-helper bar-backdrop，
 # 在文件末尾启动，高度跟着栏走）：和原生菜单栏一样是壁纸大半径模糊、略微压暗后的样子。栏自己的底色是叠在上面的染色
+# 各项上下对齐在同一条中线上：文字（数字）画在 7–17.5、大多数图标 4.5–20（从栏顶量，中线 12.25，上下各空约 4–4.5）。
+# 调某一项的上下位置时照这个对（y_offset 只能是整数）
 sketchybar --bar position=top height=24 color=$BAR_COLOR shadow=off sticky=on topmost=on \
     padding_left=8 padding_right=8 display=all font_smoothing=on
 # 开机、重新加载时用哪个顶栏（⌥⇧↩ 临时换的不保留）：~/.config/fantastic-i3/bar 里写 native 就是系统菜单栏、
@@ -63,7 +65,7 @@ for i in $(seq ${#WORKSPACES[@]}); do
             icon.font="$TEXT_FONT:$BOLD:13.0" icon.color=$FG_FAINT icon.highlight_color=$BAR_BLUE \
             icon.padding_left=8 icon.padding_right=6 \
             label.font="$APP_FONT:14.0" label.color=$FG_ALT label.highlight_color=$FG \
-            label.padding_left=0 label.padding_right=8 label.y_offset=-1 label.drawing=off \
+            label.padding_left=0 label.padding_right=8 label.drawing=off \
             background.color=$SPACE_BG background.corner_radius=6 background.height=20 background.drawing=off \
             script="$PLUGINS/space.sh" \
         --subscribe space.$i mouse.clicked
@@ -309,15 +311,17 @@ popup_rows mem used=已使用 "app=App 内存" wired=联动内存 compressed=被
 popup_top mem quit
 
 # ---- CPU、GPU 都是 曲线 + 百分比（不放图标：曲线就看得出是什么，面板标题里有图标）。
-#      曲线画在 background 里，SketchyBar 把它的底边贴在栏的下沿附近：整个项上移 2、文字再下移 2，曲线就和文字居中对齐了
-#      （栏高 24、曲线高 16、底边离栏底约 2：(24 - 16) / 2 - 2 = 2；栏高 32 时是 6）。
+#      曲线的高度：background 画着时是 background.height - 1，不画时是整个栏高 - 1（23）。以前 background 没打开，
+#      曲线有 23 高，再上移 2，顶上那截出了屏幕：80% 以上的线贴着屏幕上边，接近 100% 时完全看不见（GPU 常这样）。
+#      所以打开一个透明的 background，曲线高 16；整个项下移 1、文字再上移 1：曲线底边在 20、100% 的线在 4，
+#      和旁边的图标（4.5–20）上下对齐，100% 的线也看得见。
 #      弹出面板里的详细曲线两个都是蓝色。栏上的曲线 GRAPH_WIDTH 个点（每 2 秒一个，24 个点约 50 秒）----
 GRAPH_WIDTH=24
 graph_item() { # <项> <颜色> <填充色>
     sketchybar --add graph "$1" right $GRAPH_WIDTH \
         --set "$1" icon.drawing=off label.color="$2" label.width=$PERCENT_WIDTH \
             graph.color="$2" graph.fill_color="$3" graph.line_width=1.0 \
-            background.height=16 y_offset=2 label.y_offset=-2 \
+            background.drawing=on background.color=0x00000000 background.height=17 y_offset=-1 label.y_offset=1 \
             script="$PLUGINS/hover.sh"
 }
 graph_item cpu $BAR_BLUE $BAR_BLUE_FILL
