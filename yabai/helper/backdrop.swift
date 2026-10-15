@@ -71,6 +71,9 @@ final class BarBackdrop {
     let prefs = UserDefaults(suiteName: "fantastic-i3.sketchybar")
     lazy var light = prefs?.string(forKey: "look") == "light"   // 栏现在是浅色（黑字）还是深色（白字），见 checkLook
     var lookProbe: NSStatusItem?   // 宽度为 0 的状态栏项：看不见，只用来读系统给每块屏的菜单栏选的外观
+    var pendingLook: (light: Bool, since: Date)?   // 系统菜单栏换了浅 / 深，还没持续够久（见 checkLook）
+    var newestWallpaper: [CGDirectDisplayID: (url: URL, modified: Date)] = [:]   // 每块屏最近用的、文件最新的壁纸
+    var staleDisplays: Set<CGDirectDisplayID> = []   // 这些屏现在的桌面上系统存的壁纸过时了（见 wallpaper(for:)）
 
     func run() {
         let app = NSApplication.shared
@@ -156,15 +159,24 @@ final class BarBackdrop {
 
     /// 系统给主屏的菜单栏选了浅色还是深色：看状态栏项在主屏菜单栏里的那个窗口的外观（VibrantLight / VibrantDark），
     /// 换壁纸后系统会跟着改。和记下的不一样就记下来、按新的重画底板，再重新加载 SketchyBar（栏上的文字、图标换色；
-    /// 重新加载会重启这个进程，新的读到的记录和系统一致，不会再加载）
+    /// 重新加载会重启这个进程，新的读到的记录和系统一致，不会再加载）。
+    /// 两种情况不跟：主屏现在的桌面上系统存的壁纸过时了（系统菜单栏是照那张旧的选的，底板用的是最新的，见 wallpaper(for:)）；
+    /// 变了还没持续够 2.5 秒（隔 3 秒的 sync 连着两次都这样才换）。不然切到很久没去的桌面时，系统菜单栏照旧壁纸先变深、
+    /// 动态壁纸 App 一两秒后把壁纸设好又变回浅，栏跟着重新加载两次，闪两下
     func checkLook() {
         guard !hidden, fullscreenDisplays().isEmpty, let main = NSScreen.screens.first, let mainID = displayID(main),
+              !staleDisplays.contains(mainID),
               let window = NSApp.windows.first(where: { window in
                   window.className == "NSStatusBarWindow" && abs(window.frame.maxY - main.frame.maxY) < 1
                       && window.screen.flatMap(displayID) == mainID
-              }) else { return }
+              }) else { pendingLook = nil; return }
         let isLight = window.effectiveAppearance.bestMatch(from: [.vibrantLight, .vibrantDark]) == .vibrantLight
-        guard isLight != light else { return }
+        guard isLight != light else { pendingLook = nil; return }
+        guard let pending = pendingLook, pending.light == isLight, Date().timeIntervalSince(pending.since) >= 2.5 else {
+            if pendingLook?.light != isLight { pendingLook = (isLight, Date()) }
+            return
+        }
+        pendingLook = nil
         light = isLight
         prefs?.set(isLight ? "light" : "dark", forKey: "look")
         logLine("顶栏换成\(isLight ? "浅色（黑字）" : "深色（白字）")：跟着主屏的系统菜单栏")
@@ -215,10 +227,39 @@ final class BarBackdrop {
 
     func wallpaperSignature() -> String {
         NSScreen.screens.map { screen in
-            let url = NSWorkspace.shared.desktopImageURL(for: screen)
+            let url = wallpaper(for: screen)
             let modified = (try? url?.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
             return "\(screen.frame) \(url?.path ?? "-") \(modified?.timeIntervalSince1970 ?? 0)"
         }.joined(separator: "\n")
+    }
+
+    /// 这块屏现在照哪张壁纸算底板。系统的壁纸每个桌面各存一份。动态壁纸 App（比如"我的壁纸"）在桌面层铺一个整屏的窗口
+    /// 放自己的画面，再把同一张静态图设成系统壁纸（原生菜单栏只照系统壁纸调色），但只在切到某个桌面之后才设：
+    /// 很久没去的桌面上存的还是以前的壁纸，切过去时底板先是旧壁纸的颜色，一两秒后才变过来。
+    /// 所以有这种 App 的窗口盖着这块屏、现在的桌面上存的壁纸文件又比这块屏最近用的那张旧时，接着用最近那张
+    func wallpaper(for screen: NSScreen) -> URL? {
+        guard let url = NSWorkspace.shared.desktopImageURL(for: screen), let display = displayID(screen) else { return nil }
+        let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+        if let newest = newestWallpaper[display], newest.url != url, newest.modified > modified, liveWallpaperCovers(display) {
+            staleDisplays.insert(display)
+            return newest.url
+        }
+        staleDisplays.remove(display)
+        newestWallpaper[display] = (url, modified)
+        return url
+    }
+
+    /// 有没有不是系统自带的程序在这块屏的桌面层（比普通窗口低得多的那几层）铺了一个盖满整块屏的窗口：动态壁纸 App
+    func liveWallpaperCovers(_ display: CGDirectDisplayID) -> Bool {
+        let bounds = CGDisplayBounds(display)
+        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        return info.contains { window in
+            guard let layer = window[kCGWindowLayer as String] as? Int, layer < -1_000_000_000,
+                  let pid = window[kCGWindowOwnerPID as String] as? pid_t,
+                  let dict = window[kCGWindowBounds as String] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: dict as CFDictionary), frame.contains(bounds) else { return false }
+            return !(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "com.apple.").hasPrefix("com.apple.")
+        }
     }
 
     /// 全屏时不看：壁纸反正看不到，系统报的也不一定是桌面上那张，等退出全屏再说
@@ -530,7 +571,7 @@ final class BarBackdrop {
             } else {
                 windows[display] = makeWindow(frame)
             }
-            jobs.append((display, NSWorkspace.shared.desktopImageURL(for: screen), screen.frame.size,
+            jobs.append((display, wallpaper(for: screen), screen.frame.size,
                          screen.colorSpace?.cgColorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!))
         }
         placeOnDesktops()
