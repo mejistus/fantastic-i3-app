@@ -181,7 +181,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 1. 在恢复模式里运行 `csrutil enable --without fs --without debug --without nvram`。
 2. 运行 `fantastic-i3 setup-sa`（[`yabai/setup-sa`](yabai/setup-sa)），它要求时就重启。
 
-加载之后，缺的桌面会自动补齐。每次升级 yabai 后要再运行一次 `fantastic-i3 setup-sa`。在 macOS 15 上它还会给 yabai 的加载器打补丁，让它能注入 Dock（[yabai#2686](https://github.com/asmvik/yabai/issues/2686)）。
+加载之后，缺的桌面会自动补齐。删掉了某个桌面（比如在调度中心里）时，几秒内会在原来的位置补回来，后面的工作区字母不变。每次升级 yabai 后要再运行一次 `fantastic-i3 setup-sa`。在 macOS 15 上它还会给 yabai 的加载器打补丁，让它能注入 Dock（[yabai#2686](https://github.com/asmvik/yabai/issues/2686)）。
 
 ## 排错
 

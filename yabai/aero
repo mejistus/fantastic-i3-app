@@ -870,18 +870,53 @@ cmd_keys() { # <auto|sa|native> [--force]（改了 WORKSPACES / 按键后用 --f
     return 0
 }
 
+# 补桌面（脚本扩展模式）：工作区是固定数量的桌面，少了（在调度中心里关掉了一个之类）就新建，补回原来的位置。
+# 标签按桌面的顺序贴，新桌面只加在最后的话，被删的那个后面的工作区全往后错一个字母（窗口还在原来的桌面上，字母变了）。
+# 照上次记下的顺序（$STATE/desktops）：新建的挪到"被删的那个后面第一个还在的桌面"前面；它是这块屏最后一个时就留在最后。
+# 新建可能一时失败：reload 时刚重新注入过脚本扩展、还没好；在调度中心里删的桌面，调度中心还开着。
+# 所以每半秒重试一次、最多 5 秒，还不行返回失败（cmd_spaces 不更新记录，等调度中心关掉或桌面再有增减时再补）
+add_desktops() { # <几个> <显示器>
+    local need=$1 display=$2 prev now new target i try
+    prev=$(cat "$STATE/desktops" 2>/dev/null)
+    [ -n "$prev" ] || prev='[]'
+    for ((i = 0; i < need; i++)); do
+        for try in $(seq 10); do
+            yabai -m space --create "$display" 2>/dev/null && break
+            if [ "$try" = 10 ]; then
+                log "补桌面：新建失败（脚本扩展还没好？调度中心开着？），调度中心关掉或桌面再有增减时再补"
+                return 1
+            fi
+            sleep 0.5
+        done
+        now=$(yabai -m query --spaces)
+        new=$(jq -r --argjson d "$display" '[.[] | select(.display == $d)] | last | .index' <<<"$now")
+        target=$(jq -r --argjson prev "$prev" --argjson k "$i" --argjson d "$display" '
+            (map(.id)) as $ids
+            | [$prev[] | select(. as $p | $ids | index($p) | not)] as $missing
+            | if $k < ($missing | length) then
+                ($prev | index($missing[$k])) as $pos
+                | ([$prev[$pos + 1:][] | select(. as $p | $ids | index($p))] | first) as $next
+                | if $next == null then empty else (.[] | select(.id == $next and .display == $d) | .index) end
+              else empty end' <<<"$now")
+        if [ -n "$target" ] && [ "$target" != "$new" ] && yabai -m space "$new" --move "$target" 2>/dev/null; then
+            log "补桌面：少了一个，新建后挪到第 $target 个（原来那个的位置），后面的工作区字母不变"
+        else
+            log "补桌面：少了一个，新建在第 $new 个"
+        fi
+    done
+}
+
 cmd_spaces() {
-    local n=${#WORKSPACES[@]} have i idx label
+    local n=${#WORKSPACES[@]} have i idx label short=0
     have=$(yabai -m query --spaces | jq '[.[] | select(."is-native-fullscreen" | not)] | length')
     if [ "$(keys_mode)" = sa ]; then
         # 新桌面加在桌面 1 所在的显示器上。别的显示器至少各有一个自己的桌面、排在后面：多建几个，让工作区都在这块屏上
         local display extra
         display=$(yabai -m query --spaces --space 1 | jq -r .display)
         extra=$(($(yabai -m query --displays | jq length) - 1))
-        while [ "$have" -lt $((n + extra)) ]; do
-            yabai -m space --create "$display" 2>/dev/null || break
-            have=$((have + 1))
-        done
+        if [ "$have" -lt $((n + extra)) ]; then
+            add_desktops $((n + extra - have)) "$display" || short=1
+        fi
     elif [ "$have" -lt "$n" ] && [ ! -f "$STATE/notified-spaces" ]; then
         # 每次开机只提醒一次（添加桌面时会反复重新加载）
         touch "$STATE/notified-spaces"
@@ -898,8 +933,9 @@ cmd_spaces() {
         case $label in [0-9]*) ;; *) yabai -m space "$idx" --label "$label" ;; esac
         i=$((i + 1))
     done
-    # 记下现在有哪些普通桌面，spaces-changed 拿来比
-    yabai -m query --spaces | jq -c '[.[] | select(."is-native-fullscreen" | not) | .id]' >"$STATE/desktops"
+    # 记下现在有哪些普通桌面，spaces-changed 拿来比、add_desktops 照着补位置。没补齐时不记：留着原来的，
+    # 调度中心关掉（mission_control_exit）时 spaces-changed 发现和记录不一样，再来一次
+    [ "$short" = 1 ] || yabai -m query --spaces | jq -c '[.[] | select(."is-native-fullscreen" | not) | .id]' >"$STATE/desktops"
     return 0
 }
 

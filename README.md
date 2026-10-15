@@ -181,7 +181,7 @@ Without yabai's scripting addition, workspaces switch with macOS's slide animati
 1. In Recovery, run `csrutil enable --without fs --without debug --without nvram`.
 2. Run `fantastic-i3 setup-sa` ([`yabai/setup-sa`](yabai/setup-sa)), and reboot if it asks.
 
-Once it's loaded, missing desktops are created automatically. Run `fantastic-i3 setup-sa` again after every yabai upgrade. On macOS 15 it also patches yabai's loader so it can inject into the Dock ([yabai#2686](https://github.com/asmvik/yabai/issues/2686)).
+Once it's loaded, missing desktops are created automatically. If you remove one (say in Mission Control), it comes back in the same place within a couple of seconds, so every later workspace keeps its letter. Run `fantastic-i3 setup-sa` again after every yabai upgrade. On macOS 15 it also patches yabai's loader so it can inject into the Dock ([yabai#2686](https://github.com/asmvik/yabai/issues/2686)).
 
 ## Troubleshooting
 

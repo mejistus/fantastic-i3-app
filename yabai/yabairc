@@ -73,6 +73,8 @@ fi
 # 进出原生全屏也会新建 / 删掉一个桌面，那种不 reload（见 aero spaces-changed）
 yabai -m signal --add event=space_created action="$AERO spaces-changed"
 yabai -m signal --add event=space_destroyed action="$AERO spaces-changed"
+# 在调度中心里删掉的桌面，调度中心关掉前补不回来（见 aero add_desktops）：关掉时再看一次
+yabai -m signal --add event=mission_control_exit action="$AERO spaces-changed"
 
 # ---- 布局：tiles，横向根容器，间距 2 ----
 yabai -m config layout                bsp
