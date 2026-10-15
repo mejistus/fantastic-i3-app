@@ -3,7 +3,11 @@
 # 主题：color（彩色）/ mono（黑白，像原生菜单栏：栏上的图标、文字、曲线都是白色，文字用系统字体，
 #       只有表示警告的 WARN / ALERT 保留黄、红）。弹出面板两种主题都是彩色的。
 # 栏右边一组最左边的开关（plugins/theme.sh）切换，记在 defaults 的 fantastic-i3.sketchybar theme 里（aero-helper 也读它）
+# 浅色 / 深色（LOOK）：和原生菜单栏一样跟着壁纸走。壁纸顶上那一条亮的时候系统菜单栏是浅底黑字，暗的时候是深底白字；
+# aero-helper bar-backdrop 从系统读出主屏选了哪种，记在 defaults 的 fantastic-i3.sketchybar look 里，变了就重新加载。
+# 浅色时只换栏上的颜色，弹出面板跟着系统的深色外观，不变（原生的也是这样），所以面板用 POPUP_FG、PANEL_*
 export THEME=$(defaults read fantastic-i3.sketchybar theme 2>/dev/null || echo color)
+export LOOK=$(defaults read fantastic-i3.sketchybar look 2>/dev/null || echo dark)
 export BAR_COLOR=0x00282c34   # 栏底色全透明：底色完全交给 aero-helper bar-backdrop 的底板（和原生菜单栏一样是模糊的壁纸）。
                               # 想更不透就加大前两位（00 → 40 → 80），叠一层 #282c34 的深色
 export DARK=0xff282c34        # 彩色底上的深色字（skhd 模式标签）
@@ -45,4 +49,24 @@ if [ "$THEME" = mono ]; then
     # 系统字体（和原生菜单栏一样，中文自动用苹方），字重比 Maple Mono 降一档；数字由 sketchybarrc 设成等宽（tnum）
     export TEXT_FONT=.AppleSystemUIFont BOLD=Semibold SEMIBOLD=Medium MEDIUM=Regular REGULAR=Regular APP_NAME=Bold
     export PERCENT_GLYPH=28 RATE_GLYPH=32
+fi
+
+# 面板（总是深色）用的：上面定好的深色那一套
+export POPUP_FG=$FG PANEL_BLUE=$BAR_BLUE PANEL_GREEN=$BAR_GREEN PANEL_YELLOW=$BAR_YELLOW PANEL_PURPLE=$BAR_PURPLE PANEL_ORANGE=$BAR_ORANGE
+export MODE_FG=$DARK   # skhd 模式标签（彩色底）上的字
+
+if [ "$LOOK" = light ]; then
+    # 浅色栏：原生的字是黑色、不透明度 86%（截图量的：白底上 37，193 的底上 28）。
+    # 彩色主题换成 One Light 的配色（One Dark 的浅色版），黑白主题都换成黑
+    export SPACE_BG=0x1f000000 FG_FAINT=0x66000000 GREEN_DIM=0xb350a14f RED_DIM=0xb3e45649
+    export WARN=0xffc18401 ALERT=0xffe45649 MODE_FG=0xffffffff
+    if [ "$THEME" = mono ]; then
+        export FG=0xdb000000 FG_ALT=0x8c000000
+        export BAR_BLUE=$FG BAR_GREEN=$FG BAR_YELLOW=$FG BAR_PURPLE=$FG BAR_CYAN=$FG BAR_ORANGE=$FG
+        export GREEN_DIM=0x8c000000 RED_DIM=0x8c000000 BAR_BLUE_FILL=0x29000000 BAR_PURPLE_FILL=0x29000000
+    else
+        export FG=0xff383a42 FG_ALT=0xff696c77
+        export BAR_BLUE=0xff4078f2 BAR_GREEN=0xff50a14f BAR_YELLOW=0xffc18401 BAR_PURPLE=0xffa626a4 BAR_CYAN=0xff0184bc BAR_ORANGE=0xff986801
+        export BAR_BLUE_FILL=0x444078f2 BAR_PURPLE_FILL=0x44a626a4
+    fi
 fi

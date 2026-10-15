@@ -1,8 +1,12 @@
 // SketchyBar 顶栏的底板（aero-helper bar-backdrop，由 ../../sketchybar/sketchybarrc 启动）
 //
-// 原生菜单栏的"磨砂"其实是壁纸：屏幕顶上那块壁纸用很大的半径（约 300 pt）模糊、略微压暗，所以壁纸亮的地方亮、
-// 暗的地方几乎是黑的，中间平滑过渡，身后的窗口不会透出来。这里照着做：每块屏顶上放一条和栏一样大的窗口，
-// 贴上这样算出来的图（参数和截下来的原生菜单栏逐段比对过）。读不到壁纸（动态壁纸等）时退回系统的磨砂材质。
+// 原生菜单栏的"磨砂"其实是壁纸：只取壁纸最上面菜单栏那么高的一条，横着用很大的半径模糊，再调色。身后的窗口
+// （包括动态壁纸 App 铺在桌面上的窗口）不会透出来，只看系统壁纸。这里照着做：每块屏顶上放一条和栏一样大的窗口，
+// 贴上这样算出来的图（见 wallpaperStrip，参数是换了二十多张纯色、渐变测试壁纸，和截下来的原生菜单栏逐个比出来的）。
+// 读不到壁纸（动态壁纸等）时退回系统的磨砂材质。
+// 系统按这一条的亮度给每块屏的菜单栏选浅色（黑字）或深色（白字），调色也不一样。选了哪个从状态栏窗口的外观读
+// （见 checkLook），记在 defaults 的 fantastic-i3.sketchybar look 里，变了就重新加载 SketchyBar：colors.sh 按它给栏上的
+// 文字、图标换色。SketchyBar 的颜色所有屏都一样，所以浅 / 深跟主屏走，别的屏的底板也按主屏的浅 / 深来算。
 // SketchyBar 自己的 blur_radius 用的私有接口在 macOS 15 上对它的窗口不起作用，所以不用它。
 //
 // 系统菜单栏总是常显、占着顶上那一截（窗口和桌面图标都排在它下面，两种模式下布局一样），栏和底板盖在它上面：
@@ -37,8 +41,6 @@ func CGSRemoveWindowsFromSpaces(_ cid: Int32, _ windows: CFArray, _ spaces: CFAr
 final class BarBackdrop {
     let sketchybar = "/opt/homebrew/bin/sketchybar"
     let yabai = "/opt/homebrew/bin/yabai"
-    // 在 sRGB（带 gamma）里模糊和压暗，和比对时的算法一致
-    let context = CIContext(options: [.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!])
     let work = DispatchQueue(label: "bar-backdrop", qos: .utility)
     var windows: [CGDirectDisplayID: NSWindow] = [:]   // 每块屏一条
     var height: CGFloat = 0
@@ -66,11 +68,15 @@ final class BarBackdrop {
     var panelWatchUntil = Date.distantPast   // 收到 SIGUSR2 后这段时间里一直找面板（它可能出来得晚）
     let wantedHidden = "/tmp/yabai-aero-\(NSUserName())/bar-hidden"   // aero show_bar / hide_bar 写的 on / off
     var hiddenSetAt = Date.distantPast       // 照 aero 写的藏 / 放出的时候：之后半秒内问到的不算（可能是 SketchyBar 还没跟上的旧状态）
+    let prefs = UserDefaults(suiteName: "fantastic-i3.sketchybar")
+    lazy var light = prefs?.string(forKey: "look") == "light"   // 栏现在是浅色（黑字）还是深色（白字），见 checkLook
+    var lookProbe: NSStatusItem?   // 宽度为 0 的状态栏项：看不见，只用来读系统给每块屏的菜单栏选的外观
 
     func run() {
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)   // 不出现在程序坞和 ⌘⇥ 里，yabai 也不管它
         try? FileManager.default.removeItem(atPath: wantedHidden)   // 上次留下的
+        lookProbe = NSStatusBar.system.statusItem(withLength: 0)
         sync()
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
@@ -143,8 +149,27 @@ final class BarBackdrop {
             }
             placeOnDesktops()
             checkWallpaper()
+            checkLook()
         }
         orderBelowBar()
+    }
+
+    /// 系统给主屏的菜单栏选了浅色还是深色：看状态栏项在主屏菜单栏里的那个窗口的外观（VibrantLight / VibrantDark），
+    /// 换壁纸后系统会跟着改。和记下的不一样就记下来、按新的重画底板，再重新加载 SketchyBar（栏上的文字、图标换色；
+    /// 重新加载会重启这个进程，新的读到的记录和系统一致，不会再加载）
+    func checkLook() {
+        guard !hidden, fullscreenDisplays().isEmpty, let main = NSScreen.screens.first, let mainID = displayID(main),
+              let window = NSApp.windows.first(where: { window in
+                  window.className == "NSStatusBarWindow" && abs(window.frame.maxY - main.frame.maxY) < 1
+                      && window.screen.flatMap(displayID) == mainID
+              }) else { return }
+        let isLight = window.effectiveAppearance.bestMatch(from: [.vibrantLight, .vibrantDark]) == .vibrantLight
+        guard isLight != light else { return }
+        light = isLight
+        prefs?.set(isLight ? "light" : "dark", forKey: "look")
+        logLine("顶栏换成\(isLight ? "浅色（黑字）" : "深色（白字）")：跟着主屏的系统菜单栏")
+        rebuild()
+        work.async { [weak self] in self?.runTool(self?.sketchybar ?? "", ["--reload"]) }
     }
 
     /// aero 写的要藏还是要出来（两秒内写的才算，读完就删）
@@ -492,7 +517,7 @@ final class BarBackdrop {
             windows[display] = nil
         }
         guard height > 0 else { return }
-        var jobs: [(display: CGDirectDisplayID, wallpaper: URL?, size: CGSize)] = []
+        var jobs: [(display: CGDirectDisplayID, wallpaper: URL?, size: CGSize, space: CGColorSpace)] = []
         for (display, screen) in screens {
             let frame = NSRect(x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height)
             if let window = windows[display] {
@@ -500,13 +525,16 @@ final class BarBackdrop {
             } else {
                 windows[display] = makeWindow(frame)
             }
-            jobs.append((display, NSWorkspace.shared.desktopImageURL(for: screen), screen.frame.size))
+            jobs.append((display, NSWorkspace.shared.desktopImageURL(for: screen), screen.frame.size,
+                         screen.colorSpace?.cgColorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!))
         }
         placeOnDesktops()
-        let generation = self.generation, height = self.height
+        let generation = self.generation, height = self.height, light = self.light
         work.async { [weak self] in
             guard let self else { return }
-            let strips = jobs.map { ($0.display, self.wallpaperStrip($0.wallpaper, screen: $0.size, height: height)) }
+            let strips = jobs.map { job in
+                (job.display, self.wallpaperStrip(job.wallpaper, screen: job.size, height: height, light: light, space: job.space))
+            }
             DispatchQueue.main.async {
                 guard generation == self.generation else { return }
                 for (display, strip) in strips {
@@ -542,17 +570,28 @@ final class BarBackdrop {
             window.contentView = view
         } else {
             let glass = NSVisualEffectView(frame: bounds)
-            glass.material = .hudWindow   // 系统材质里和原生菜单栏最接近的
+            glass.material = light ? .menu : .hudWindow   // 系统材质里和原生菜单栏最接近的
+            glass.appearance = NSAppearance(named: light ? .vibrantLight : .vibrantDark)
             glass.blendingMode = .behindWindow
             glass.state = .active
             window.contentView = glass
         }
     }
 
-    /// 屏幕顶上那块壁纸模糊、压暗后的样子。按 1/4 分辨率算：模糊半径这么大，细节反正都没了。后台线程里调用
-    func wallpaperStrip(_ url: URL?, screen: CGSize, height: CGFloat) -> CGImage? {
+    /// 原生菜单栏底下的样子（参数都是和原生的截图比出来的，见文件开头）：
+    ///   1. 壁纸按"填充屏幕"铺好，只取最上面栏那么高的一条（再往下的壁纸不算：顶上一条白、下面全黑时原生的是纯白）
+    ///   2. 横着高斯模糊，σ = 354 pt（左白右黑的壁纸上，原生的过渡正好是这个 σ 的高斯）；屏幕两头外面按镜像延伸
+    ///      （两头颜色不一样的壁纸上比过：按边上的颜色延伸，两端会差到 20 个色阶）
+    ///   3. 提饱和度（亮度按 Rec. 709 算），超出的截掉：深色 × 1.24，浅色 × 1.16
+    ///   4. 深色：× 0.82；浅色：和白色按 33.5% 混合
+    /// 全在这块屏自己的颜色空间里、带 gamma 的数值上算，出来的图也标成这个颜色空间，贴上去不再换算，和系统画的一样
+    /// （换到 sRGB 或线性空间里提饱和度都差得多）。和原生比：深色在纯色测试壁纸上差 1 个色阶以内，浅色最多差 5 个
+    /// （一个饱和度对不上所有颜色，取了两边都差不多的）；两张实际的壁纸（一浅一深）上平均差 2、最多差 6 个色阶。
+    /// 按 1/4 分辨率算：模糊半径这么大，细节反正都没了。后台线程里调用
+    func wallpaperStrip(_ url: URL?, screen: CGSize, height: CGFloat, light: Bool, space: CGColorSpace) -> CGImage? {
         guard let url, let image = CIImage(contentsOf: url),
               image.extent.width > 0, image.extent.height > 0 else { return nil }
+        let context = CIContext(options: [.workingColorSpace: space, .outputColorSpace: space])
         let k: CGFloat = 0.25
         // 取整：内置屏高 1050，× 0.25 = 262.5，边上那半个像素是半透明的，clampedToExtent 再把它往外铺开，
         // 糊出来整条都半透明（看着就是栏透明了）。所以尺寸取整，铺好的图也只留屏幕范围内整像素的部分
@@ -565,12 +604,29 @@ final class BarBackdrop {
             .transformed(by: CGAffineTransform(translationX: (size.width - image.extent.width * scale) / 2,
                                                y: (size.height - image.extent.height * scale) / 2))
             .cropped(to: CGRect(origin: .zero, size: size))
-        let strip = CGRect(x: 0, y: size.height - height * k, width: size.width, height: height * k)
-        let darken = CIVector(x: -10 / 255, y: -10 / 255, z: -10 / 255, w: 0)
-        let blurred = placed.clampedToExtent()
-            .applyingGaussianBlur(sigma: 300 * k)
-            .applyingFilter("CIColorMatrix", parameters: ["inputBiasVector": darken])
+        let rows = max(1, (height * k).rounded())
+        let strip = CGRect(x: 0, y: size.height - rows, width: size.width, height: rows)
+        let saturation: CGFloat = light ? 1.16 : 1.24
+        let (r, g, b) = (0.2126 * (1 - saturation), 0.7152 * (1 - saturation), 0.0722 * (1 - saturation))
+        let gain: CGFloat = light ? 1 - 0.335 : 0.82, lift: CGFloat = light ? 0.335 : 0
+        // 左右各接一份左右翻过来的（3σ 比屏幕窄，一份就够），再往外、上下按边上的延伸
+        let band = placed.cropped(to: strip)
+        let mirrored = band
+            .composited(over: band.transformed(by: CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 0, ty: 0)))
+            .composited(over: band.transformed(by: CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 2 * size.width, ty: 0)))
+        let result = mirrored.clampedToExtent()
+            .applyingGaussianBlur(sigma: 354 * k)
+            .applyingFilter("CIColorMatrix", parameters: [
+                "inputRVector": CIVector(x: r + saturation, y: g, z: b, w: 0),
+                "inputGVector": CIVector(x: r, y: g + saturation, z: b, w: 0),
+                "inputBVector": CIVector(x: r, y: g, z: b + saturation, w: 0)])
+            .applyingFilter("CIColorClamp")
+            .applyingFilter("CIColorMatrix", parameters: [
+                "inputRVector": CIVector(x: gain, y: 0, z: 0, w: 0),
+                "inputGVector": CIVector(x: 0, y: gain, z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: gain, w: 0),
+                "inputBiasVector": CIVector(x: lift, y: lift, z: lift, w: 0)])
             .cropped(to: strip)
-        return context.createCGImage(blurred, from: strip)
+        return context.createCGImage(result, from: strip, format: .RGBA8, colorSpace: space)
     }
 }

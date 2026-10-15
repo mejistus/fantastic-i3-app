@@ -27,6 +27,8 @@ let rowHeight: CGFloat = 26, valueColumn: CGFloat = 94
 
 /// 顶栏的主题（color / mono），黑白主题下标题的图标也是白的
 var barTheme: String { UserDefaults(suiteName: "fantastic-i3.sketchybar")?.string(forKey: "theme") ?? "color" }
+/// 栏现在是浅色（黑字）还是深色（白字）：跟着系统菜单栏，bar-backdrop 记下的（见 backdrop.swift 的 checkLook）
+var barLight: Bool { UserDefaults(suiteName: "fantastic-i3.sketchybar")?.string(forKey: "look") == "light" }
 
 @discardableResult
 func run(_ path: String, _ arguments: [String]) -> (status: Int32, output: String) {

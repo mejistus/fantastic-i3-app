@@ -80,7 +80,7 @@ sketchybar --add item space_apps left \
 # skhd 模式（RESIZE / SERVICE），平时不显示
 sketchybar --add item mode left \
     --set mode drawing=off updates=on icon.drawing=off \
-        label.font="$TEXT_FONT:$BOLD:12.0" label.color=$DARK label.padding_left=8 label.padding_right=8 \
+        label.font="$TEXT_FONT:$BOLD:12.0" label.color=$MODE_FG label.padding_left=8 label.padding_right=8 \
         background.corner_radius=6 background.height=18 background.drawing=on \
         script="$PLUGINS/mode.sh" \
     --subscribe mode skhd_mode
@@ -136,12 +136,12 @@ popup() { # <项> [<事件> …]：面板样式 + 鼠标事件（默认只有点
         --subscribe "$item" ${@:-mouse.clicked}
 }
 
-popup_title() { # <项> <图标> <颜色> [<标题>]：标题行，下面一条分隔线。调用时颜色用 BAR_*：黑白主题下标题也是白的，只有面板内容是彩色。
+popup_title() { # <项> <图标> <颜色> [<标题>]：标题行，下面一条分隔线。调用时颜色用 PANEL_*：黑白主题下标题也是白的，只有面板内容是彩色。
                 # 标题行最右边一个 ↗（背景图片 icons/open.png，鼠标移上去换成亮的 open-hover.png）：点标题行打开对应的应用或设置页
     # ↗ 是 18 像素的图缩成一半（9 pt），右边离面板边缘 POPUP_PAD；位置从这一行的亮底左边（缩进 HL_INSET）算起
     sketchybar --add item "$1.title" "popup.$1" \
         --set "$1.title" "${POPUP_CLICKABLE[@]}" icon="$2" icon.color="$3" icon.font="$FONT:Bold:16.0" \
-            icon.padding_right=8 label="${4:-}" label.font="$POPUP_FONT:Semibold:13.0" label.color=$FG \
+            icon.padding_right=8 label="${4:-}" label.font="$POPUP_FONT:Semibold:13.0" label.color=$POPUP_FG \
             background.image="$CONFIG_DIR/icons/open.png" background.image.scale=0.5 \
             background.image.padding_left=$((POPUP_WIDTH - POPUP_PAD - 9 - HL_INSET)) \
         --subscribe "$1.title" mouse.clicked mouse.entered mouse.exited \
@@ -157,7 +157,7 @@ popup_rows() { # <项> <行>=<名称> …：左边灰色的名称，右边的值
     for row in "$@"; do
         sketchybar --add item "$item.${row%%=*}" "popup.$item" \
             --set "$item.${row%%=*}" width=$POPUP_WIDTH icon="${row#*=}" icon.width=110 icon.padding_left=$POPUP_PAD \
-                icon.font="$POPUP_FONT:Regular:13.0" icon.color=$POPUP_FG2 label=— label.font="$POPUP_FONT:Medium:13.0" label.color=$FG \
+                icon.font="$POPUP_FONT:Regular:13.0" icon.color=$POPUP_FG2 label=— label.font="$POPUP_FONT:Medium:13.0" label.color=$POPUP_FG \
                 label.width=$((POPUP_WIDTH - 110 - POPUP_PAD)) label.align=right label.padding_right=0
     done
 }
@@ -180,7 +180,7 @@ popup_top() { # <项> [quit]：进程排行五行（左边进程名，右边用�
         fi
         sketchybar --add item "$1.top.$i" "popup.$1" \
             --set "$1.top.$i" "${style[@]}" icon=— label.width=$((POPUP_WIDTH - 190 - POPUP_PAD)) label.align=right label.padding_right=0 \
-                icon.font="$POPUP_FONT:Regular:13.0" icon.color=$FG label.font="$POPUP_FONT:Medium:13.0" label.color=$POPUP_FG2
+                icon.font="$POPUP_FONT:Regular:13.0" icon.color=$POPUP_FG label.font="$POPUP_FONT:Medium:13.0" label.color=$POPUP_FG2
         [ "${2:-}" = quit ] && sketchybar --subscribe "$1.top.$i" mouse.clicked mouse.entered mouse.exited
     done
 }
@@ -217,7 +217,7 @@ sketchybar --add item clock right \
     --set clock icon=󰅐 icon.color=$BAR_BLUE update_freq=15 \
         script="$PLUGINS/clock.sh"
 popup clock
-popup_title clock 󰸗 $BAR_BLUE
+popup_title clock 󰸗 $PANEL_BLUE
 popup_rows clock lunar=农历 week=星期 zone=时区
 
 # ---- 电池 ----
@@ -225,7 +225,7 @@ sketchybar --add item battery right \
     --set battery update_freq=120 script="$PLUGINS/battery.sh" \
     --subscribe battery power_source_change system_woke
 popup battery
-popup_title battery 󰁹 $BAR_GREEN
+popup_title battery 󰁹 $PANEL_GREEN
 popup_bar battery bar
 popup_rows battery level=电量 time=剩余时间 power=电源 health=健康度 cycles=循环次数 temp=温度
 
@@ -234,11 +234,11 @@ sketchybar --add item volume right \
     --set volume icon.color=$BAR_ORANGE script="$PLUGINS/volume.sh" \
     --subscribe volume volume_change mouse.clicked mouse.scrolled
 popup volume
-popup_title volume 󰕾 $BAR_ORANGE
+popup_title volume 󰕾 $PANEL_ORANGE
 sketchybar --add slider volume.slider popup.volume $((POPUP_WIDTH - 2 * POPUP_PAD)) \
     --set volume.slider padding_left=$POPUP_PAD padding_right=$POPUP_PAD icon.drawing=off label.drawing=off \
         slider.highlight_color=$ORANGE slider.background.height=6 slider.background.corner_radius=3 \
-        slider.background.color=$ITEM_BG slider.knob=󰝥 slider.knob.font="$FONT:Bold:14.0" slider.knob.color=$FG \
+        slider.background.color=$ITEM_BG slider.knob=󰝥 slider.knob.font="$FONT:Bold:14.0" slider.knob.color=$POPUP_FG \
         script="$PLUGINS/volume_slider.sh" \
     --subscribe volume.slider mouse.clicked
 popup_rows volume level=音量 muted=静音
@@ -252,12 +252,12 @@ popup_hint volume "滚轮调节 · 拖动滑块 · 点“静音”那行切换"
 sketchybar --add item input right \
     --set input icon=󰌌 icon.color=$BAR_YELLOW label=EN script="$PLUGINS/hover.sh"
 popup input
-popup_title input 󰌌 $BAR_YELLOW 输入法
+popup_title input 󰌌 $PANEL_YELLOW 输入法
 # 每个输入法一行，点一下切过去（plugins/hover.sh → aero-helper input-select）；鼠标移上去整行亮起来，和原生菜单一样
 for i in 0 1 2 3 4; do
     sketchybar --add item input.src.$i popup.input \
         --set input.src.$i "${POPUP_CLICKABLE[@]}" drawing=off icon.padding_right=8 \
-            icon.font="$FONT:Bold:14.0" label.font="$POPUP_FONT:Medium:13.0" \
+            icon.font="$FONT:Bold:14.0" icon.color=$POPUP_FG label.font="$POPUP_FONT:Medium:13.0" label.color=$POPUP_FG \
         --subscribe input.src.$i mouse.clicked mouse.entered mouse.exited
 done
 
@@ -296,7 +296,7 @@ sketchybar --add item disk right \
     --set disk icon=󰋊 icon.color=$BAR_ORANGE label.color=$BAR_ORANGE label.width=$PERCENT_WIDTH \
         script="$PLUGINS/hover.sh"
 popup disk
-popup_title disk 󰋊 $BAR_ORANGE
+popup_title disk 󰋊 $PANEL_ORANGE
 popup_bar disk bar
 popup_rows disk used=已用 free=可用 purgeable=其中可清除 total=总容量 read=读取 write=写入
 
@@ -305,7 +305,7 @@ sketchybar --add item mem right \
     --set mem icon=󰍛 icon.color=$BAR_GREEN label.color=$BAR_GREEN label.width=$PERCENT_WIDTH \
         script="$PLUGINS/hover.sh"
 popup mem
-popup_title mem 󰍛 $BAR_GREEN
+popup_title mem 󰍛 $PANEL_GREEN
 popup_image mem chart 40
 popup_rows mem used=已使用 "app=App 内存" wired=联动内存 compressed=被压缩 cached=缓存文件 swap=交换 pressure=内存压力
 popup_top mem quit
@@ -326,7 +326,7 @@ graph_item() { # <项> <颜色> <填充色>
 }
 graph_item cpu $BAR_BLUE $BAR_BLUE_FILL
 popup cpu
-popup_title cpu 󰻠 $BAR_BLUE
+popup_title cpu 󰻠 $PANEL_BLUE
 popup_graph cpu history $BLUE $BLUE_FILL
 popup_rows cpu user=用户 system=系统 idle=空闲 load=平均负载 uptime=已开机
 popup_image cpu cores 58
@@ -335,7 +335,7 @@ popup_top cpu
 # ---- GPU ----
 graph_item gpu $BAR_PURPLE $BAR_PURPLE_FILL
 popup gpu
-popup_title gpu 󰾲 $BAR_PURPLE
+popup_title gpu 󰾲 $PANEL_PURPLE
 popup_graph gpu history $BLUE $BLUE_FILL
 popup_rows gpu util=利用率 render=渲染 tiler=几何处理 mem=占用内存 alloc=已分配内存
 

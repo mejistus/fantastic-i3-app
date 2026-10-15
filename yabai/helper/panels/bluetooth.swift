@@ -127,7 +127,9 @@ final class BluetoothPanel: BarPanel {
     func pushBar(force: Bool = false) {
         let on = bluetoothPower()
         let icon = on ? "\u{F00AF}" : "\u{F00B2}"
-        let tint = !on ? "0x73ffffff" : barTheme == "mono" ? "0xffffffff" : "0xff61afef"
+        // 和 colors.sh 的 FG_FAINT、FG（黑白主题）、BAR_BLUE（彩色主题）一样，浅色栏上换成深色的
+        let tint = !on ? (barLight ? "0x66000000" : "0x73ffffff")
+            : barTheme == "mono" ? (barLight ? "0xdb000000" : "0xffffffff") : (barLight ? "0xff4078f2" : "0xff61afef")
         guard force || icon + tint != lastBar else { return }
         lastBar = icon + tint
         DispatchQueue.global(qos: .utility).async {
