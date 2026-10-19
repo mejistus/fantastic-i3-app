@@ -40,6 +40,9 @@
 //       按系统的语言和地区格式化当前时间（DateFormatter 模板，如 MMMdEEEHm → 10月7日 週三 13:55）。
 //   aero-helper input-source
 //       打印当前输入法的简称：中文 → 中，日文 → あ，韩文 → 한，英文键盘布局 → EN。
+//   aero-helper text-fit <字体> <最宽多少 pt> <文字>
+//       字体照 SketchyBar 的写法（家族:字重:大小，如 Maple Mono NF:Regular:13.0）。放得下原样打印，放不下截短、末尾加 …；
+//       连一个字加 … 都放不下时什么都不打印。栏上的窗口标题用（plugins/front_app.sh），不和右边一组叠在一起。
 //   aero-helper ordered-out <窗口id>...
 //       打印其中被应用收起来、哪个桌面上都看不到的窗口（见"收起来的窗口"）。SketchyBar 的工作区图标用。
 //   aero-helper bar-stats [秒]
@@ -248,6 +251,42 @@ func watchAppActivation(aero: String) -> Never {
     }
     RunLoop.main.run()
     exit(0)
+}
+
+// MARK: - 文字截短（text-fit）
+
+/// SketchyBar 写法的字体：家族:字重:大小。系统字体（.AppleSystemUIFont）按字重取；别的在这个家族里找字重名一样的那一款
+func sketchybarFont(_ spec: String) -> NSFont {
+    let parts = spec.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+    let family = parts.first ?? "", style = parts.count > 1 ? parts[1] : "Regular"
+    let size = CGFloat(Double(parts.count > 2 ? parts[2] : "") ?? 13)
+    if family.hasPrefix(".") || family.isEmpty {
+        let weights: [String: NSFont.Weight] = ["Ultralight": .ultraLight, "Thin": .thin, "Light": .light, "Regular": .regular,
+                                                "Medium": .medium, "Semibold": .semibold, "Bold": .bold, "Heavy": .heavy, "Black": .black]
+        return NSFont.systemFont(ofSize: size, weight: weights[style] ?? .regular)
+    }
+    let members = NSFontManager.shared.availableMembers(ofFontFamily: family) ?? []
+    if let match = members.first(where: { ($0[1] as? String)?.caseInsensitiveCompare(style) == .orderedSame }),
+       let name = match[0] as? String, let font = NSFont(name: name, size: size) {
+        return font
+    }
+    return NSFont(name: family, size: size) ?? NSFont.systemFont(ofSize: size)
+}
+
+/// 放进 width 宽：放得下原样；放不下就二分找最长的前缀，去掉末尾的空白再加 …；一个字加 … 都放不下返回空
+func fitText(_ text: String, font: NSFont, width: CGFloat) -> String {
+    let attributes: [NSAttributedString.Key: Any] = [.font: font]
+    func fits(_ s: String) -> Bool { (s as NSString).size(withAttributes: attributes).width <= width }
+    if fits(text) { return text }
+    let characters = Array(text)
+    var low = 0, high = characters.count - 1   // low 个字加 … 放得下（0 时另判），high 个放不下
+    while low < high {
+        let mid = (low + high + 1) / 2
+        let candidate = String(characters[..<mid]).trimmingCharacters(in: .whitespaces) + "…"
+        if fits(candidate) { low = mid } else { high = mid - 1 }
+    }
+    guard low > 0 else { return "" }
+    return String(characters[..<low]).trimmingCharacters(in: .whitespaces) + "…"
 }
 
 // MARK: - 常驻进程只留一个
@@ -855,6 +894,10 @@ case "date":
     print(formatter.string(from: Date()))
 case "input-source":
     print(inputSourceLabel())
+case "text-fit":
+    let rest = Array(arguments.dropFirst())
+    guard rest.count >= 3, let width = Double(rest[1]) else { exit(2) }
+    print(fitText(rest[2...].joined(separator: " "), font: sketchybarFont(rest[0]), width: CGFloat(width)))
 case "ordered-out":
     orderedOut(arguments.dropFirst().compactMap { UInt32($0) }).forEach { print($0) }
 case "bar-stats":
@@ -906,6 +949,6 @@ case "switcher":
     app.delegate = switcher
     app.run()
 default:
-    FileHandle.standardError.write("用法：aero-helper step left|right | wait-release <修饰键> <秒> | native-hotkeys on|off | switcher [选项] | app-names <bundle id> | default-browser | option-fn <命令> | app-watch <aero> | date <模板> | input-source | ordered-out <窗口id>... | bar-stats [秒] | bar-backdrop | apple-menu <位置> | process-menu <列表> <行> | lock\n".data(using: .utf8)!)
+    FileHandle.standardError.write("用法：aero-helper step left|right | wait-release <修饰键> <秒> | native-hotkeys on|off | switcher [选项] | app-names <bundle id> | default-browser | option-fn <命令> | app-watch <aero> | date <模板> | input-source | text-fit <字体> <宽> <文字> | ordered-out <窗口id>... | bar-stats [秒] | bar-backdrop | apple-menu <位置> | process-menu <列表> <行> | lock\n".data(using: .utf8)!)
     exit(2)
 }

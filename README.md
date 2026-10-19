@@ -136,8 +136,8 @@ A SketchyBar bar styled like the i3 polybar (One Dark, Maple Mono NF). It is as 
 **Left**
 
 - An  menu that is a real macOS menu: About This Mac, System Settings, App Store, Sleep, Restart, Shut Down, Lock Screen, Log Out. Restart, shut down and log out ask first.
-- Workspaces 1 … 10 and Z … T with the icons of their apps. Click one to switch. An empty letter workspace shows only while you're on it.
-- The skhd mode (RESIZE / SERVICE), then the focused app and window title.
+- Workspaces 1 … 10 and Z … T with the icons of their apps. Click one to switch. An empty letter workspace shows only while you're on it; with `hidden_unactivated=true` in the [settings file](#files), empty numbered workspaces are hidden the same way instead of dimmed.
+- The skhd mode (RESIZE / SERVICE), then the focused app and window title. A title that would run into the right-hand group is cut short with …, measured on the narrowest display.
 
 **Right**
 
@@ -194,6 +194,7 @@ Once it's loaded, missing desktops are created automatically. If you remove one 
 | Path | What |
 |---|---|
 | [`bin/fantastic-i3`](bin/fantastic-i3) | Setup, start, stop, uninstall |
+| `~/.config/fantastic-i3/config` | Settings, one `key=value` per line, created by `fantastic-i3 setup`. `hidden_unactivated=true` hides empty workspaces on the bar. Run `sketchybar --reload` after editing |
 | [`yabai/yabairc`](yabai/yabairc) | yabai config: rules, fixed workspaces, signals |
 | [`yabai/aero`](yabai/aero) | Workspace and window commands the keys call |
 | [`yabai/helper/`](yabai/helper) | aero-helper (Swift): the switcher lists, clipboard history, screenshot recognition, bar stats and backdrop |

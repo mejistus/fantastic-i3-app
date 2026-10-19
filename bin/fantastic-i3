@@ -291,6 +291,20 @@ cmd_setup() {
                 "Add ~/.local/bin to your PATH to run the commands in bin/ from a terminal (the key bindings work either way).")") ;;
         esac
     fi
+    # 设置文件 ~/.config/fantastic-i3/config（key=value）：没有时放一份带说明的默认值，有了不动
+    if [ ! -e "$HOME/.config/fantastic-i3/config" ]; then
+        mkdir -p "$HOME/.config/fantastic-i3"
+        cat >"$HOME/.config/fantastic-i3/config" <<'CONFIG'
+# fantastic-i3 settings: key=value, one per line; lines starting with # are comments.
+# Run `sketchybar --reload` after editing.
+# fantastic-i3 的设置：每行一个 key=value，# 开头是注释。改完运行 sketchybar --reload。
+
+# true: hide empty workspaces on the bar (the current one stays); false: show them dimmed.
+# true：顶栏不显示空着的工作区（当前所在的照常显示）；false：空的变暗显示。
+hidden_unactivated=false
+CONFIG
+        ok "$(t "设置文件：~/.config/fantastic-i3/config" "Settings file: ~/.config/fantastic-i3/config")"
+    fi
     # skhdrc 末尾 .load 这个文件（不进仓库，见 .gitignore）；之后由 aero keys 按 SA 是否加载切换成 sa / native，这里只在没有时先放一个
     [ -e "$ROOT/skhd/workspaces.skhdrc" ] || ln -sfn workspaces-native.skhdrc "$ROOT/skhd/workspaces.skhdrc"
 

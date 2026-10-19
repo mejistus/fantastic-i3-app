@@ -136,8 +136,8 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 **左边**
 
 -  菜单，就是真正的 macOS 菜单：关于本机、系统设置、App Store、睡眠、重新启动、关机、锁定屏幕、退出登录。重新启动、关机和退出登录会先确认。
-- 工作区 1 … 10 和 Z … T，上面是各自的应用图标，点一下就切过去。空的字母工作区只在你待在那里时显示。
-- skhd 模式（RESIZE / SERVICE），然后是当前应用和窗口标题。
+- 工作区 1 … 10 和 Z … T，上面是各自的应用图标，点一下就切过去。空的字母工作区只在你待在那里时显示；[设置文件](#文件)里写 `hidden_unactivated=true` 时，空的数字工作区也这样隐藏，不再变暗显示。
+- skhd 模式（RESIZE / SERVICE），然后是当前应用和窗口标题。标题长到会碰到右边一组时截短、末尾加 …，按最窄的那块屏算。
 
 **右边**
 
@@ -194,6 +194,7 @@ Wi-Fi、蓝牙面板第一次启动时，系统会问"fantastic-i3-wifi"能不�
 | 路径 | 内容 |
 |---|---|
 | [`bin/fantastic-i3`](bin/fantastic-i3) | 安装、启动、停止、卸载 |
+| `~/.config/fantastic-i3/config` | 设置，每行一个 `key=value`，`fantastic-i3 setup` 时生成。`hidden_unactivated=true`：顶栏不显示空着的工作区。改完运行 `sketchybar --reload` |
 | [`yabai/yabairc`](yabai/yabairc) | yabai 配置：规则、固定工作区、信号 |
 | [`yabai/aero`](yabai/aero) | 快捷键调用的工作区和窗口命令 |
 | [`yabai/helper/`](yabai/helper) | aero-helper（Swift）：切换列表、剪贴板历史、截图识别、顶栏数据和背景 |

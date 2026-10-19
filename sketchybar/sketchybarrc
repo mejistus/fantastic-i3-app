@@ -85,13 +85,13 @@ sketchybar --add item mode left \
         script="$PLUGINS/mode.sh" \
     --subscribe mode skhd_mode
 
-# 当前应用（图标 + 名字）和窗口标题（淡一些）
+# 当前应用（图标 + 名字）和窗口标题（淡一些）。标题不限字数：plugins/front_app.sh 按右边一组前面还剩多宽截短、加 …
 sketchybar --add item front_app left \
     --set front_app padding_left=12 icon.font="$APP_FONT:15.0" icon.color=$BAR_BLUE label.font="$TEXT_FONT:$APP_NAME:13.0" \
         script="$PLUGINS/front_app.sh" \
-    --subscribe front_app front_app_switched window_focus title_change system_woke \
+    --subscribe front_app front_app_switched window_focus title_change system_woke display_change \
     --add item window_title left \
-    --set window_title icon.drawing=off label.font="$TEXT_FONT:$REGULAR:13.0" label.color=$FG_ALT label.max_chars=80
+    --set window_title icon.drawing=off label.font="$TEXT_FONT:$REGULAR:13.0" label.color=$FG_ALT
 
 # ================================================================ 右（先加的在最右边）
 # 从左到右：主题开关（彩色 / 黑白），系统一组 GPU、CPU、内存、磁盘，然后是网速、输入法、音量、电池、日期时间。
