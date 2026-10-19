@@ -36,6 +36,7 @@
 //       skhd 绑不了修饰键，⌥ + Caps Lock 靠这个（yabairc 启动）。
 //   aero-helper app-watch <aero 的路径>
 //       常驻（yabairc 在登记完规则后启动）：有固定工作区的应用一被激活、而它还没有窗口，就先切到它的工作区（见"先切过去"）。
+//       应用激活、启动、屏幕亮起之后过一会儿再运行 aero ax-check：yabai 跟丢了开着的窗口时重启它。
 //   aero-helper date <模板>
 //       按系统的语言和地区格式化当前时间（DateFormatter 模板，如 MMMdEEEHm → 10月7日 週三 13:55）。
 //   aero-helper input-source
@@ -237,8 +238,29 @@ func watchAppActivation(aero: String) -> Never {
     let reload = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
     reload.setEventHandler { workspaces = fixedWorkspaces() }
     reload.resume()
-    NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
-                                                      object: nil, queue: .main) { note in
+    // yabai 跟丢窗口（见 aero ax-check）多在应用刚启动、屏幕刚亮起时，切到那个应用时也最先发现：这些之后过一会儿查一次。
+    // 同一类事件接连来，只查最后那次
+    var pending: [String: DispatchWorkItem] = [:]
+    func check(_ kind: String, after seconds: Double) {
+        pending[kind]?.cancel()
+        let item = DispatchWorkItem {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: aero)
+            process.arguments = ["ax-check"]
+            try? process.run()
+        }
+        pending[kind] = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: item)
+    }
+    let center = NSWorkspace.shared.notificationCenter
+    center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { _ in
+        check("launch", after: 8)
+    }
+    for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.didWakeNotification] {
+        center.addObserver(forName: name, object: nil, queue: .main) { _ in check("wake", after: 5) }
+    }
+    center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
+        check("activate", after: 2)
         guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
               let name = app.localizedName,
               let space = workspaces.last(where: {

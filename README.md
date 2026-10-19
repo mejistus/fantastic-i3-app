@@ -187,6 +187,7 @@ Once it's loaded, missing desktops are created automatically. If you remove one 
 
 - `fantastic-i3 status` shows the versions, the key mode, whether the scripting addition is loaded, and every desktop with its workspace and window count.
 - Failed ⌥⇧ moves are logged to `/tmp/yabai-aero-$USER/aero.log`.
+- yabai sometimes loses track of open windows, for example right after the display wakes or when an app registers before it has finished launching. The window can then no longer be moved or focused. fantastic-i3 checks for this after an app is activated or launched and after the display wakes, and restarts yabai when it finds such a window (at most once a minute, and only once per window). Each restart is logged to `aero.log`.
 - ⌃S Esc reloads the config.
 
 ## Files

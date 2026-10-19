@@ -21,6 +21,7 @@
 #   aero app-workspace <应用名>...                           应用固定的工作区（yabairc 里带工作区号的规则、⌃S W 记住的），没有就不输出
 #   aero focus-window <窗口 id>                              聚焦窗口（在别的桌面就先切过去）
 #   aero mru-push <窗口 id>                                  记录窗口使用顺序（给 ⌘⇥ 窗口列表用）
+#   aero ax-check                                            yabai 跟丢了开着的窗口时重启它（aero-helper app-watch 调）
 #   aero helper <…>                                          运行 aero-helper（需要时自动编译）
 #   aero reload                                              = reload-config（不重启 yabai，不打乱窗口）
 #   aero keys <auto|sa|native> [--force]                     桌面快捷键模式（见下）
@@ -332,7 +333,11 @@ cmd_move_node_to_workspace() {
         local front
         front=$(lsappinfo info -only name "$(lsappinfo front)" 2>/dev/null | sed 's/.*="\(.*\)"/\1/')
         log "move $target: yabai 找不到当前窗口（前台应用：${front:-?}）"
-        notify "yabai 找不到当前窗口（${front:-?}），没有移动"
+        if cmd_ax_check; then
+            notify "yabai 跟丢了${front:-当前}的窗口，已经重启 yabai，再按一次"
+        else
+            notify "yabai 找不到当前窗口（${front:-?}），没有移动"
+        fi
         return 0
     fi
     id=$(jq -r .id <<<"$win")
@@ -546,6 +551,38 @@ focused_window() {
     else
         space_windows_mru "$sp" "$pid" | head -1
     fi
+}
+
+# yabai 跟丢的窗口：窗口开着（ordered in），yabai 也认得它，却没有它的辅助功能句柄（has-ax-reference=false），
+# 于是移不动、聚焦不了：⌥⇧ 移窗口报"找不到当前窗口"，⌥⇥ / ⌘⇥ 快按找不到可切的窗口。遇到过两种：屏幕熄灭再亮起后一批窗口全丢；
+# 应用刚启动、还没准备好就被 yabai 登记（QQ 音乐，登记的名字还是可执行文件名 QQMusic），之后 yabai 不再重试。
+# yabai 没有重新接管一个应用的命令，只能重启它（一两秒，窗口不动；开机 5 分钟后重启不会重新套用规则）。
+# 应用关了窗口但没退出（微信）留下的窗口是 ordered out，不算。同一个窗口只为它重启一次：重启后还拿不到，是这个应用本身不让拿，
+# 再重启也没用；一分钟内最多重启一次。aero-helper app-watch 在应用激活、启动、屏幕亮起之后调，移窗口找不到当前窗口时也调。
+# 重启了返回 0
+cmd_ax_check() {
+    local yabai_pid lost skip tried="$STATE/ax-lost" mark="$STATE/ax-restart"
+    yabai_pid=$(pgrep -x yabai | head -1)
+    [ -n "$yabai_pid" ] || return 1
+    case $(ps -o etime= -p "$yabai_pid" | tr -d ' ') in 00:0? | 00:1?) return 1 ;; esac   # 刚启动的 20 秒还在一个个接管窗口
+    lost=$(yabai -m query --windows 2>/dev/null | jq -r '.[] | select((."has-ax-reference" | not) and .layer == "normal"
+        and .frame.w >= 100 and .frame.h >= 100) | "\(.id)\t\(.app)"')
+    [ -n "$lost" ] || return 1
+    # 去掉收起的（ordered out）和已经为它重启过的
+    skip=$(helper ordered-out $(cut -f1 <<<"$lost"); cat "$tried" 2>/dev/null)
+    lost=$(awk -F'\t' -v skip="$(tr '\n' ' ' <<<"$skip")" '
+        BEGIN { n = split(skip, s, " "); for (i = 1; i <= n; i++) known[s[i]] = 1 } !known[$1]' <<<"$lost")
+    [ -n "$lost" ] || return 1
+    [ -f "$mark" ] && [ $(($(date +%s) - $(stat -f %m "$mark"))) -lt 60 ] && return 1
+    cut -f1 <<<"$lost" >>"$tried"
+    touch "$mark"
+    log "yabai 跟丢了开着的窗口：$(awk -F'\t' '{ printf "%s%s %s", (NR > 1 ? "，" : ""), $1, $2 }' <<<"$lost")，重启 yabai"
+    yabai --restart-service
+    for _ in $(seq 40); do   # 等新的 yabai 能接受命令
+        sleep 0.25
+        [ "$(pgrep -x yabai | head -1)" != "$yabai_pid" ] && yabai -m query --spaces >/dev/null 2>&1 && break
+    done
+    return 0
 }
 
 cmd_toggle_float() {
@@ -981,6 +1018,7 @@ case ${1:-} in
     focus-window) shift; cmd_focus_window "$@" ;;
     helper) shift; helper "$@" ;;
     mru-push) shift; cmd_mru_push "$@" ;;
+    ax-check) cmd_ax_check ;;
     log) shift; log "$*" ;;
     reload) cmd_reload ;;
     keys) shift; cmd_keys "$@" ;;
