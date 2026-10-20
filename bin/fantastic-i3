@@ -136,6 +136,7 @@ EOF
   ⌥⇧H/J/K/L, ⌥⇧←↓↑→      和那边的窗口交换位置
   ⌥F                      全屏 / 还原
   ⌥⇧F                     平铺 ↔ 浮动
+  ⌃⌥C                     浮动窗口移到屏幕正中
   ⌥- / ⌥=                 缩小 / 放大
   ⌥R                      调大小模式：H J K L 或方向键调宽高，Esc 退出
 EOF
@@ -178,6 +179,7 @@ EOF
   ⌥⇧H/J/K/L, ⌥⇧←↓↑→      Swap with the window in that direction
   ⌥F                      Toggle fullscreen
   ⌥⇧F                     Toggle tiling / floating
+  ⌃⌥C                     Center a floating window on its screen
   ⌥- / ⌥=                 Shrink / grow
   ⌥R                      Resize mode: H J K L or the arrow keys; Esc to exit
 EOF

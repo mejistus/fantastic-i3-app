@@ -67,6 +67,7 @@ To work on the code, clone this repo and run `<clone>/bin/fantastic-i3 setup`: `
 | <kbd>⌥</kbd> / <kbd>⌥⇧</kbd> + arrows | The same with arrow keys. These replace the system's move / select by word |
 | <kbd>⌥F</kbd> | Fullscreen / restore |
 | <kbd>⌥⇧F</kbd> | Tile ↔ float |
+| <kbd>⌃⌥C</kbd> | Center a floating window on its screen, below the menu bar |
 | <kbd>⌥-</kbd> / <kbd>⌥=</kbd> | Shrink / grow |
 | <kbd>⌥R</kbd> | Resize mode: H J K L or arrows change width and height; Esc leaves |
 

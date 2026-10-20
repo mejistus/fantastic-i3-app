@@ -46,6 +46,8 @@
 //       连一个字加 … 都放不下时什么都不打印。栏上的窗口标题用（plugins/front_app.sh），不和右边一组叠在一起。
 //   aero-helper ordered-out <窗口id>...
 //       打印其中被应用收起来、哪个桌面上都看不到的窗口（见"收起来的窗口"）。SketchyBar 的工作区图标用。
+//   aero-helper visible-frame <x> <y>
+//       打印包含这个点的屏幕扣掉菜单栏、程序坞后的区域：x y 宽 高（全局坐标，左上角为原点，和 yabai 一样）。aero center 用。
 //   aero-helper bar-stats [秒]
 //       给 SketchyBar 送数据（常驻，由 sketchybarrc 启动）：每隔几秒（默认 2）推一次 CPU、内存、
 //       GPU（利用率和占用的内存）、网速，磁盘每 30 秒一次；切换输入法时立刻推输入法。SketchyBar 不在了就退出。
@@ -164,6 +166,15 @@ func orderedOut(_ ids: [UInt32]) -> [UInt32] {
         var orderedIn: DarwinBoolean = false
         return CGSWindowIsOrderedIn(cid, id, &orderedIn) == .success && !orderedIn.boolValue
     }
+}
+
+// MARK: - 屏幕的可用区域
+
+/// 包含这个点的屏幕扣掉菜单栏、程序坞后的区域。点和结果都是全局坐标（左上角为原点，和 yabai 一样）
+func visibleFrame(at point: CGPoint) -> CGRect? {
+    let height = NSScreen.screens.first?.frame.height ?? 0   // 主屏高度：全局坐标和 Cocoa 坐标（左下角为原点）互换
+    func global(_ r: NSRect) -> CGRect { CGRect(x: r.minX, y: height - r.maxY, width: r.width, height: r.height) }
+    return NSScreen.screens.first { global($0.frame).contains(point) }.map { global($0.visibleFrame) }
 }
 
 // MARK: - 输入法
@@ -922,6 +933,10 @@ case "text-fit":
     print(fitText(rest[2...].joined(separator: " "), font: sketchybarFont(rest[0]), width: CGFloat(width)))
 case "ordered-out":
     orderedOut(arguments.dropFirst().compactMap { UInt32($0) }).forEach { print($0) }
+case "visible-frame":
+    let xy = arguments.dropFirst().compactMap { Double($0) }
+    guard xy.count == 2, let r = visibleFrame(at: CGPoint(x: xy[0], y: xy[1])) else { exit(1) }
+    print("\(Int(r.minX)) \(Int(r.minY)) \(Int(r.width)) \(Int(r.height))")
 case "bar-stats":
     keepNewest("bar-stats")
     let stats = BarStats()   // 要留着强引用：定时器和通知的回调用的是 weak self

@@ -35,6 +35,8 @@ alt + shift - right : yabai -m window --swap east
 # fullscreen / layout floating tiling
 alt - f         : $HOME/.config/yabai/aero fullscreen
 alt + shift - f : $HOME/.config/yabai/aero toggle-float
+# ⌃⌥C：浮动窗口移到所在屏幕的正中（菜单栏下面那块的正中；平铺窗口不动）
+ctrl + alt - c  : $HOME/.config/yabai/aero center
 
 # resize smart -50 / +50（⌥- ⌥=）
 alt - 0x1B : $HOME/.config/yabai/aero resize smart -50

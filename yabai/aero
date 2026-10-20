@@ -6,7 +6,7 @@
 #   aero move-workspace-to-monitor [--wrap-around] next      = move-workspace-to-monitor
 #   aero fullscreen                                          = fullscreen（平铺、浮动窗口都能用）
 #   aero resize <smart|width|height> <+N|-N>                 = resize
-#   aero center [窗口 id]                                     替代 center-window 脚本
+#   aero center [窗口 id]                                     ⌃⌥C：浮动窗口移到所在屏幕的正中（替代 center-window 脚本）
 #   aero float-fixed <窗口 id>                               不能调整大小的平铺窗口改成浮动并居中
 #   aero toggle-float                                        ⌥⇧F：当前窗口在平铺 / 浮动之间切换
 #   aero toggle-space-float                                  service 模式的 f：当前工作区的窗口全部平铺 / 全部浮动
@@ -444,14 +444,19 @@ cmd_resize() {
     return 0
 }
 
+# 浮动窗口移到所在屏幕的正中（⌃⌥C；平铺窗口不动）。扣掉菜单栏、程序坞，和平铺窗口占的是同一块；
+# 窗口比这块还大就贴着它的左上角，标题栏不会跑到菜单栏底下
 cmd_center() {
-    local win id disp x y
+    local win id disp area x y
     win=$(yabai -m query --windows --window ${1:+"$1"} 2>/dev/null) || return 0
     [ "$(jq -r '."is-floating"' <<<"$win")" = true ] || return 0
     id=$(jq -r .id <<<"$win")
     disp=$(yabai -m query --displays --window "$id") || return 0
-    read -r x y < <(jq -nr --argjson w "$win" --argjson d "$disp" \
-        '"\(($d.frame.x + ($d.frame.w - $w.frame.w) / 2) | floor) \(($d.frame.y + ($d.frame.h - $w.frame.h) / 2) | floor)"')
+    # x y 宽 高；拿不到（aero-helper 编译失败）就用整块屏幕
+    area=$(helper visible-frame $(jq -r '.frame | "\(.x + .w / 2) \(.y + .h / 2)"' <<<"$disp")) \
+        || area=$(jq -r '.frame | "\(.x) \(.y) \(.w) \(.h)"' <<<"$disp")
+    read -r x y < <(jq -nr --argjson w "$win" --arg area "$area" '($area | split(" ") | map(tonumber)) as [$x, $y, $aw, $ah]
+        | "\([$x, $x + ($aw - $w.frame.w) / 2] | max | floor) \([$y, $y + ($ah - $w.frame.h) / 2] | max | floor)"')
     yabai -m window "$id" --move "abs:$x:$y"
 }
 
