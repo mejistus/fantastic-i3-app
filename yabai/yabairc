@@ -40,8 +40,10 @@ if [ -z "$AERO_RELOAD" ] || ! pgrep -qf "^$HELPER option-fn"; then
 fi
 
 # 剪贴板历史（⌥⇧V 的面板读它）：aero-helper 常驻，记下每次复制的内容。和上面一样，yabai 重启时再启动
+# 先编译（需要时才编）：升级后在重启过程中，SketchyBar 编译新版本晚于这里启动记录，记录会一直用着旧的那份
 if [ -z "$AERO_RELOAD" ] || ! pgrep -qf "^$HELPER clipboard-watch"; then
     pkill -f "^$HELPER clipboard-watch" 2>/dev/null
+    "$AERO" helper >/dev/null 2>&1
     "$HELPER" clipboard-watch >/dev/null 2>&1 &
 fi
 
