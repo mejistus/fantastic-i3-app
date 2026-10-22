@@ -148,6 +148,7 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         let title: String
         let keys: [String]          // 搜索用的原文（小写；汉字另有一段拼音），正则匹配它们
         let haystack: [[Character]] // 同样的内容拆成字符，模糊匹配用
+        let appText: [Character]    // 来源应用名：只在正文没命中时兜底，得分减半（正文里对上的排在前面）
     }
 
     /// 列表里标题的字号；其余尺寸都按它和默认值的比例缩放（⌘+ / ⌘- 调，会记住，⌘0 恢复默认）
@@ -158,6 +159,7 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
 
     var all: [Row] = []
     var shown: [Row] = []
+    var activeQuery = ""    // 现在搜索框里的内容（列表里高亮命中的字符用）
     let panel = KeyPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     let search = NSTextField()
     let divider = NSBox()
@@ -195,8 +197,9 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
                 let name = (title as NSString).lastPathComponent
                 title = paths.count > 1 ? "\(name) 等 \(paths.count) 个文件" : name
             }
-            let keys = searchKeys("\(text.prefix(300)) \(entry.app ?? "")")
-            return Row(entry: entry, title: title, keys: keys.map { String($0) }, haystack: keys)
+            let keys = searchKeys(String(text.prefix(300)))
+            return Row(entry: entry, title: title, keys: keys.map { String($0) }, haystack: keys,
+                       appText: Array((entry.app ?? "").lowercased()))
         }
         shown = all
     }
@@ -373,6 +376,7 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
 
     func filter(_ query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
+        activeQuery = trimmed
         if trimmed.hasPrefix("/") {
             // / 开头：后面当正则用（不区分大小写），/ 单独一个字母就是没输入。
             // 写法不对（括号没配平等）就当没有匹配，不用弹窗打断
@@ -396,8 +400,13 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
                 shown = all.enumerated().compactMap { index, row -> (Int, Int, Row)? in
                     var total = 0
                     for term in terms {
-                        guard let score = row.haystack.compactMap({ fuzzyScore(term, $0) }).max() else { return nil }
-                        total += score
+                        if let score = row.haystack.compactMap({ fuzzyScore(term, $0) }).max() {
+                            total += score
+                        } else if let score = fuzzyScore(term, row.appText) {
+                            total += score / 2   // 只在来源应用名里命中：算，但排在正文命中的后面
+                        } else {
+                            return nil
+                        }
                     }
                     return (total, index, row)
                 }
@@ -644,8 +653,9 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         }
         cell.addSubview(icon)
 
-        let title = NSTextField(labelWithString: shown[row].title.isEmpty ? " " : shown[row].title)
-        title.font = .systemFont(ofSize: fontSize, weight: .medium)
+        let titleFont = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let title = NSTextField(labelWithString: "")
+        title.attributedStringValue = highlighted(shown[row].title.isEmpty ? " " : shown[row].title, font: titleFont)
         title.lineBreakMode = .byTruncatingTail
         title.maximumNumberOfLines = 1
         let detail = NSTextField(labelWithString: [entry.app, timeText(entry.date)].compactMap { $0 }.joined(separator: " · "))
@@ -661,6 +671,51 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         cell.addSubview(title)
         cell.addSubview(detail)
         return cell
+    }
+
+    /// 列表标题里把搜索命中的字符标出来：模糊匹配标实际对上的那几个字（和打分的对齐是同一份），
+    /// 正则标每段匹配。看不清哪条为什么排上来时，看高亮就知道
+    func highlighted(_ text: String, font: NSFont) -> NSAttributedString {
+        let attributed = NSMutableAttributedString(string: text, attributes: [
+            .font: font, .foregroundColor: NSColor.labelColor,
+        ])
+        for range in highlightRanges(in: text) where range.length > 0 && range.location + range.length <= attributed.length {
+            attributed.addAttribute(.backgroundColor, value: NSColor.controlAccentColor.withAlphaComponent(0.30), range: range)
+        }
+        return attributed
+    }
+
+    func highlightRanges(in text: String) -> [NSRange] {
+        guard !activeQuery.isEmpty else { return [] }
+        if activeQuery.hasPrefix("/") {
+            let pattern = String(activeQuery.dropFirst())
+            guard !pattern.isEmpty, let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+            else { return [] }
+            return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).map(\.range)
+        }
+        let lower = Array(text.lowercased())
+        var ranges: [NSRange] = []
+        for term in activeQuery.lowercased().split(separator: " ") {
+            guard let match = fuzzyMatch(Array(term), lower) else { continue }
+            ranges += utf16Ranges(match.positions, in: text)
+        }
+        return ranges
+    }
+
+    /// 字符下标换成 UTF-16 的 NSRange（NSAttributedString 用的是 UTF-16），挨着的合成一段
+    func utf16Ranges(_ positions: [Int], in text: String) -> [NSRange] {
+        var offsets = [0]
+        for character in text { offsets.append(offsets[offsets.count - 1] + String(character).utf16.count) }
+        var ranges: [NSRange] = []
+        for position in positions.sorted() where position + 1 < offsets.count {
+            let range = NSRange(location: offsets[position], length: offsets[position + 1] - offsets[position])
+            if let last = ranges.last, last.location + last.length == range.location {
+                ranges[ranges.count - 1].length += range.length
+            } else {
+                ranges.append(range)
+            }
+        }
+        return ranges
     }
 
     func appIcon(_ bundle: String?) -> NSImage? {

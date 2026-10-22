@@ -563,18 +563,85 @@ final class RowView: NSTableRowView {
     }
 }
 
-/// 模糊匹配：query 的字符按顺序出现在 text 里即算匹配；连续、词首、靠前的匹配得分高
-func fuzzyScore(_ query: [Character], _ text: [Character]) -> Int? {
-    var qi = 0, score = 0, last = -2
-    for (i, c) in text.enumerated() where qi < query.count {
-        guard c == query[qi] else { continue }
-        score += 10
-        if i == last + 1 { score += 15 }
-        if i == 0 || !(text[i - 1].isLetter || text[i - 1].isNumber) { score += 20 }
-        last = i
-        qi += 1
+/// 模糊匹配：query 的字符按顺序出现在 text 里即算匹配（不区分大小写，调用方先转小写）。
+/// 和 fzf 一样算的是**得分最高的那个对齐**，不是见到第一个就算，隔得越远扣得越多：
+/// 连续 +20、落在词首 +30、正好是个完整的词 +20、越靠前越好、每空一个位置 -3。
+/// 以前是从头贪心匹配，标题里明明是 "HF Key"，也会输给正文里隔了几十个字的 "h…f"（2026-10-22）。
+/// 返回得分和每个字符落在哪（列表里高亮用）
+func fuzzyMatch(_ query: [Character], _ text: [Character]) -> (score: Int, positions: [Int])? {
+    let n = text.count, m = query.count
+    guard m > 0, m <= n else { return nil }
+    let none = Int.min / 4
+    let consecutiveBonus = 20, wordStartBonus = 30, wordEndBonus = 20, gapPenalty = 3
+
+    func charScore(_ i: Int) -> Int {
+        var score = 10
+        if i == 0 || !(text[i - 1].isLetter || text[i - 1].isNumber) { score += wordStartBonus }
+        score -= min(i, 40) / 4   // 越靠前越好
+        return score
     }
-    return qi == query.count ? score * 1000 - last : nil
+    func endsWord(_ i: Int) -> Bool { i + 1 >= n || !(text[i + 1].isLetter || text[i + 1].isNumber) }
+
+    // C[i*m+j]：query[j] 正好落在 i 的得分；H[i*m+j]：落在 ≤ i 的最好得分（每往后一个位置减 gapPenalty）；
+    // backC / endOf 记下来源，最后倒推出每个字符的位置
+    let size = n * m
+    var C = [Int](repeating: none, count: size)
+    var H = [Int](repeating: none, count: size)
+    var backC = [Int](repeating: -1, count: size)
+    var endOf = [Int](repeating: -1, count: size)
+
+    for i in 0..<n {
+        for j in 0..<m {
+            let at = i * m + j
+            if text[i] == query[j] {
+                if j == 0 {
+                    C[at] = charScore(i)
+                } else if i > 0 {
+                    let adjacent = C[(i - 1) * m + j - 1]
+                    let anywhere = H[(i - 1) * m + j - 1]
+                    if adjacent != none, adjacent >= anywhere {
+                        C[at] = adjacent + charScore(i) + consecutiveBonus
+                        backC[at] = i - 1
+                    } else if anywhere != none {
+                        C[at] = anywhere + charScore(i)
+                        backC[at] = endOf[(i - 1) * m + j - 1]
+                    }
+                }
+            }
+            var best = C[at]
+            var end = C[at] == none ? -1 : i
+            if i > 0, H[(i - 1) * m + j] != none, H[(i - 1) * m + j] - gapPenalty > best {
+                best = H[(i - 1) * m + j] - gapPenalty
+                end = endOf[(i - 1) * m + j]
+            }
+            H[at] = best
+            endOf[at] = end
+        }
+    }
+
+    // 整个文本里得分最高的结尾（后面的字不罚分，只看匹配本身）
+    var score = none, at = -1
+    for i in 0..<n where H[i * m + m - 1] > score {
+        score = H[i * m + m - 1]
+        at = endOf[i * m + m - 1]
+    }
+    guard at >= 0 else { return nil }
+
+    var positions: [Int] = []
+    var i = at
+    var j = m - 1
+    while j >= 0, i >= 0 {
+        positions.append(i)
+        i = backC[i * m + j]
+        j -= 1
+    }
+    guard positions.count == m else { return nil }
+    if let last = positions.first, endsWord(last) { score += wordEndBonus }   // 正好是一个完整的词
+    return (score, positions.reversed())
+}
+
+func fuzzyScore(_ query: [Character], _ text: [Character]) -> Int? {
+    fuzzyMatch(query, text)?.score
 }
 
 final class Switcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
