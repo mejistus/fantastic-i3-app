@@ -304,6 +304,10 @@ cmd_setup() {
 # true: hide empty workspaces on the bar (the current one stays); false: show them dimmed.
 # true：顶栏不显示空着的工作区（当前所在的照常显示）；false：空的变暗显示。
 hidden_unactivated=false
+
+# How many days of clipboard history to keep (⌥⇧V); 0 keeps everything.
+# 剪贴板历史（⌥⇧V）保留几天；0 = 一直留着。
+clipboard_days=7
 CONFIG
         ok "$(t "设置文件：~/.config/fantastic-i3/config" "Settings file: ~/.config/fantastic-i3/config")"
     fi

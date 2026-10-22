@@ -1,8 +1,9 @@
 // 剪贴板历史（⌥⇧V）：
 //   aero-helper clipboard-watch   常驻（yabairc 启动）：每 0.5 秒看一次剪贴板，变了就记一条：文字、图片、文件。
 //                                 存在 ~/.config/fantastic-i3/clipboard/（history.json，图片在 images/，只有自己能读）。
-//                                 密码管理器标成"隐藏 / 临时"的内容不记。最多 300 条，其中图片最多 40 张；
-//                                 同样的内容再复制一次就挪到最上面。SIGHUP：重读（面板里删了条目）
+//                                 密码管理器标成"隐藏 / 临时"的内容不记。保留 7 天（~/.config/fantastic-i3/config 的
+//                                 clipboard_days，0 = 一直留着），条数、图片数另有上限兜底；同样的内容再复制一次、
+//                                 或者从面板里再用一次，都挪到最上面。SIGHUP：重读（面板里删了、用了条目）
 //   aero-helper clipboard         面板（../../bin/fantastic-clipboard 打开，skhd 的 ⌥⇧V），样子和 ⌥⇥ 的列表一样
 //                                 （系统弹出层材质、圆角、居中）：左边历史，右边预览选中的那条。直接打字搜索（汉字用拼音也行）；
 //                                 ↑↓ 选，回车粘贴到当前应用（面板不抢前台，关掉后按一下 ⌘V），⌘回车 只复制，
@@ -15,7 +16,41 @@ import QuickLookThumbnailing
 let clipboardDir = NSString("~/.config/fantastic-i3/clipboard").expandingTildeInPath
 let clipboardHistory = URL(fileURLWithPath: clipboardDir + "/history.json")
 let clipboardImages = clipboardDir + "/images"
-let clipboardMaxEntries = 300, clipboardMaxImages = 40
+let clipboardMaxEntries = 2000, clipboardMaxImages = 200
+let clipboardDefaultDays = 7
+
+/// 设置文件 ~/.config/fantastic-i3/config 里的一个值（没有就是空）
+func clipboardSetting(_ key: String) -> String? {
+    guard let text = try? String(contentsOfFile: NSHomeDirectory() + "/.config/fantastic-i3/config", encoding: .utf8)
+    else { return nil }
+    for line in text.split(whereSeparator: \.isNewline) {
+        let line = line.trimmingCharacters(in: .whitespaces)
+        guard !line.hasPrefix("#"), let eq = line.firstIndex(of: "=") else { continue }
+        if line[..<eq].trimmingCharacters(in: .whitespaces) == key {
+            return line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+        }
+    }
+    return nil
+}
+
+/// 历史保留几天：clipboard_days，默认 7，0 = 一直留着
+func clipboardKeepDays() -> Int {
+    guard let value = clipboardSetting("clipboard_days"), let days = Int(value), days >= 0 else { return clipboardDefaultDays }
+    return days
+}
+
+/// 只留最近几天，条数和图片数也有上限兜底（条目按时间从新到旧排）
+func pruneClipHistory(_ entries: [ClipEntry]) -> [ClipEntry] {
+    let days = clipboardKeepDays()
+    var kept = days > 0 ? entries.filter { $0.date >= Date().addingTimeInterval(-Double(days) * 86_400) } : entries
+    if kept.count > clipboardMaxEntries { kept.removeLast(kept.count - clipboardMaxEntries) }
+    let images = kept.indices.filter { kept[$0].kind == "image" }
+    if images.count > clipboardMaxImages {
+        let drop = Set(images.dropFirst(clipboardMaxImages))
+        kept = kept.indices.filter { !drop.contains($0) }.map { kept[$0] }
+    }
+    return kept
+}
 
 /// 密码管理器等标出的"别记"类型（nspasteboard.org 的约定）
 let clipboardSkippedTypes: Set<String> = [
@@ -51,13 +86,13 @@ func watchClipboard() -> Never {
     let files = FileManager.default
     try? files.createDirectory(atPath: clipboardImages, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
     try? files.setAttributes([.posixPermissions: 0o700], ofItemAtPath: clipboardDir)
-    var entries = loadClipHistory()
+    var entries = pruneClipHistory(loadClipHistory())
     let pasteboard = NSPasteboard.general
     var lastCount = pasteboard.changeCount
 
     signal(SIGHUP, SIG_IGN)
     let reload = DispatchSource.makeSignalSource(signal: SIGHUP, queue: .main)
-    reload.setEventHandler { entries = loadClipHistory() }
+    reload.setEventHandler { entries = pruneClipHistory(loadClipHistory()) }
     reload.resume()
 
     Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
@@ -92,12 +127,7 @@ func watchClipboard() -> Never {
         // 同样的内容再复制一次：挪到最上面
         entries.removeAll { $0.kind == entry.kind && $0.text == entry.text && $0.image == entry.image }
         entries.insert(entry, at: 0)
-        if entries.count > clipboardMaxEntries { entries.removeLast(entries.count - clipboardMaxEntries) }
-        let images = entries.indices.filter { entries[$0].kind == "image" }
-        if images.count > clipboardMaxImages {
-            let drop = Set(images.dropFirst(clipboardMaxImages))
-            entries = entries.indices.filter { !drop.contains($0) }.map { entries[$0] }
-        }
+        entries = pruneClipHistory(entries)
         // 没人用的图片文件删掉
         let used = Set(entries.compactMap(\.image))
         for name in (try? files.contentsOfDirectory(atPath: clipboardImages)) ?? [] where !used.contains(name) {
@@ -114,9 +144,10 @@ func watchClipboard() -> Never {
 final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate,
                             NSTextFieldDelegate {
     struct Row {
-        let entry: ClipEntry
+        var entry: ClipEntry
         let title: String
-        let haystack: [[Character]]
+        let keys: [String]          // 搜索用的原文（小写；汉字另有一段拼音），正则匹配它们
+        let haystack: [[Character]] // 同样的内容拆成字符，模糊匹配用
     }
 
     /// 列表里标题的字号；其余尺寸都按它和默认值的比例缩放（⌘+ / ⌘- 调，会记住，⌘0 恢复默认）
@@ -137,7 +168,7 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
     let previewScroll = NSScrollView()
     let previewImage = NSImageView()
     let info = NSTextField(labelWithString: "")
-    let hint = NSTextField(labelWithString: "↩ 粘贴    ⌘↩ 只复制    ⌘⌫ 删除    ⌘+ ⌘- 缩放    Esc 关闭")
+    let hint = NSTextField(labelWithString: "↩ 粘贴    ⌘↩ 只复制    ⌘⌫ 删除    ⌘+ ⌘- 缩放    / 正则    Esc 关闭")
     var screenFrame = NSRect.zero
     var center: NSPoint?
     var clickMonitor: Any?
@@ -155,7 +186,7 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         let saved = store.double(forKey: "fontSize")
         fontSize = saved > 0 ? CGFloat(saved) : ClipboardPanel.defaultFontSize
         super.init()
-        all = loadClipHistory().map { entry in
+        all = pruneClipHistory(loadClipHistory()).map { entry in
             let text = entry.kind == "image" ? "图片 \(entry.size ?? "")" : (entry.text ?? "")
             var title = text.split(whereSeparator: \.isNewline).first.map(String.init)?
                 .trimmingCharacters(in: .whitespaces) ?? ""
@@ -164,7 +195,8 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
                 let name = (title as NSString).lastPathComponent
                 title = paths.count > 1 ? "\(name) 等 \(paths.count) 个文件" : name
             }
-            return Row(entry: entry, title: title, haystack: searchKeys("\(text.prefix(300)) \(entry.app ?? "")"))
+            let keys = searchKeys("\(text.prefix(300)) \(entry.app ?? "")")
+            return Row(entry: entry, title: title, keys: keys.map { String($0) }, haystack: keys)
         }
         shown = all
     }
@@ -340,20 +372,38 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
     // 过滤、选择
 
     func filter(_ query: String) {
-        let terms = query.lowercased().split(separator: " ").map(Array.init)
-        if terms.isEmpty {
-            shown = all
-        } else {
-            shown = all.enumerated().compactMap { index, row -> (Int, Int, Row)? in
-                var total = 0
-                for term in terms {
-                    guard let score = row.haystack.compactMap({ fuzzyScore(term, $0) }).max() else { return nil }
-                    total += score
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("/") {
+            // / 开头：后面当正则用（不区分大小写），/ 单独一个字母就是没输入。
+            // 写法不对（括号没配平等）就当没有匹配，不用弹窗打断
+            let pattern = String(trimmed.dropFirst())
+            if pattern.isEmpty {
+                shown = all
+            } else if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                shown = all.filter { row in
+                    row.keys.contains {
+                        regex.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) != nil
+                    }
                 }
-                return (total, index, row)
+            } else {
+                shown = []
             }
-            .sorted { $0.0 != $1.0 ? $0.0 > $1.0 : $0.1 < $1.1 }
-            .map { $0.2 }
+        } else {
+            let terms = trimmed.lowercased().split(separator: " ").map(Array.init)
+            if terms.isEmpty {
+                shown = all
+            } else {
+                shown = all.enumerated().compactMap { index, row -> (Int, Int, Row)? in
+                    var total = 0
+                    for term in terms {
+                        guard let score = row.haystack.compactMap({ fuzzyScore(term, $0) }).max() else { return nil }
+                        total += score
+                    }
+                    return (total, index, row)
+                }
+                .sorted { $0.0 != $1.0 ? $0.0 > $1.0 : $0.1 < $1.1 }
+                .map { $0.2 }
+            }
         }
         table.reloadData()
         select(0)
@@ -497,6 +547,17 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
     func confirm(_ row: Int, paste: Bool = true) {
         guard shown.indices.contains(row) else { return }
         let entry = shown[row].entry
+        // 用过的那条挪到最前面，日期也算现在（保留期从最近一次用起算）。记录的那个进程重读一次
+        if let index = all.firstIndex(where: { $0.entry.id == entry.id }) {
+            var used = all.remove(at: index)
+            used.entry.date = Date()
+            all.insert(used, at: 0)
+            saveClipHistory(all.map(\.entry))
+            let reload = Process()
+            reload.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+            reload.arguments = ["-HUP", "-f", "^\(CommandLine.arguments[0]) clipboard-watch"]
+            try? reload.run()
+        }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         switch entry.kind {
