@@ -10,8 +10,12 @@ export PATH=/opt/homebrew/bin:/usr/bin:/bin
 source "$CONFIG_DIR/colors.sh"
 source "$CONFIG_DIR/icon_map.sh"
 
-windows=$(yabai -m query --windows 2>/dev/null) || exit 0
-spaces=$(yabai -m query --spaces 2>/dev/null) || exit 0
+# yabai 偶尔会卡住一阵（睡醒之后会有查询一直不回的时候）：3 秒就放弃。不然脚本一直堵着，
+# 之后每个事件再多一个进程，越积越多（2026-10-22 醒来后积了 5 个，栏也就不刷新了）
+qyabai() { perl -e 'alarm 3; exec @ARGV or exit 127' -- yabai "$@" 2>/dev/null; }
+
+windows=$(qyabai -m query --windows) || exit 0
+spaces=$(qyabai -m query --spaces) || exit 0
 # 原生全屏的应用自己占一个桌面（is-native-fullscreen），不算工作区：它的窗口不画图标、也不参与
 # "可见 / 空工作区显示"的判断，进出全屏时才不会让左组的图标来回跳、变宽变窄（配合 aero spaces-changed）
 visible=" $(jq -r '.[] | select(."is-visible") | select(."is-native-fullscreen" | not) | .index' <<<"$spaces" | paste -sd' ' -) "

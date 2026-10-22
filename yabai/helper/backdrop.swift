@@ -49,6 +49,8 @@ final class BarBackdrop {
     var generation = 0    // 第几次重画：后台算得慢的旧图不要
     var lowered = false   // 有窗口盖满了某块屏，栏和底板降到了普通窗口下面（见 checkCovered）
     var level: NSWindow.Level { NSWindow.Level(rawValue: lowered ? -21 : 25) }   // 降下去时在栏（topmost=off，-20）下面
+    var wakeGuardUntil = Date.distantPast   // 刚睡醒的这几秒屏幕状态还乱着，别跟着降栏（见 checkCovered）
+    var wokeAt = Date.distantPast           // 上次处理唤醒的时间：系统会连发好几个唤醒通知，只处理一次
     var signalSource: DispatchSourceSignal?
     var panelSignal: DispatchSourceSignal?
     var glass: [Int: NSWindow] = [:]   // SketchyBar 面板的背景窗口号 → 垫在它后面的材质窗口
@@ -87,6 +89,12 @@ final class BarBackdrop {
                                                           object: nil, queue: .main) { [weak self] _ in
             self?.placeOnDesktops()   // 新加的桌面
             self?.checkWallpaper()
+        }
+        // 睡醒后 SketchyBar 会重画栏、屏可能刚回来：底板的前后顺序、系统菜单栏的透明度都可能对不上（见 woke）
+        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.didWakeNotification] {
+            NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.woke()
+            }
         }
         Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.sync() }
         // 每秒看一次有没有盖满整块屏的窗口。查一次完整的窗口列表要几毫秒（窗口多时更多，窗口服务器那边也要干活），
@@ -219,6 +227,13 @@ final class BarBackdrop {
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
         guard (try? process.run()) != nil else { return nil }
+        // 睡醒后 SketchyBar 可能一时不答（以前一直等下去，底板就再也不问、不再排前后顺序了）：最多等 2 秒
+        for _ in 0..<200 where process.isRunning { usleep(10_000) }
+        if process.isRunning {
+            process.terminate()
+            usleep(200_000)
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
@@ -288,6 +303,9 @@ final class BarBackdrop {
     /// 每秒看一次窗口列表：放映开始时程序没有切换、桌面也没变，没有通知可等（最多晚 1 秒降下去）。
     /// 菜单栏常显时，最大化的窗口盖不到菜单栏那一截，不会算成盖满
     func checkCovered() {
+        // 刚睡醒的几秒：登录窗口、clamshell 的切换都会让"有窗口盖满整屏"一时报得不准。
+        // 这时降栏 / 升栏会让 SketchyBar 重建所有项（bar_manager_reset），栏上的项一个个消失再出现
+        guard Date() >= wakeGuardUntil else { return }
         guard coveredByWindow() != lowered else { return }
         lowered.toggle()
         for window in windows.values { window.level = level }
@@ -425,9 +443,11 @@ final class BarBackdrop {
             awaySince = nil
             try? FileManager.default.removeItem(atPath: peekMarker)
             switchBar(hidden: false)
+            logLine("碰顶让开：栏回来")
             return
         }
-        guard let screen, fromTop <= 2, !hidden, !lowered, glass.isEmpty else { edge = nil; return }
+        // 降下去了（放映等盖满整屏的窗口）也让：这时系统菜单栏是透明的，碰顶是把它找回来的唯一办法
+        guard let screen, fromTop <= 2, !hidden, glass.isEmpty else { edge = nil; return }
         guard let start = edge, abs(mouse.x - start.x) <= peekSlack else { edge = (mouse.x, now); return }
         guard now.timeIntervalSince(start.since) >= peekDwell else { return }
         edge = nil
@@ -437,17 +457,20 @@ final class BarBackdrop {
         awaySince = nil
         FileManager.default.createFile(atPath: peekMarker, contents: nil)
         switchBar(hidden: true)
+        logLine("碰顶让开：栏让开")
     }
 
-    /// 屏幕上有没有开着的菜单或面板：系统菜单栏和状态图标点开的菜单、控制中心的面板都在 25 层以上（菜单是 101）。
-    /// 平时这一段是空的：收起的 SketchyBar 面板挪在屏外，1000 层以上的是常驻的（BetterDisplay 等）。
+    /// 屏幕上有没有开着的菜单或面板：系统菜单栏和状态图标点开的菜单、控制中心的面板都在 101 层（菜单的层级）。
+    /// 只看 101：以前算的是 26–999 层，常驻的悬浮窗也算进去了——Dock 的跟踪窗口（27 层，铺满整块屏）、
+    /// Vibe Island 的悬浮面板（27 层），碰顶让开就永远触发不了、触发了也回不来（2026-10-22）。
+    /// 收起的 SketchyBar 面板挪在屏外（-9999），不在屏上就不算。
     /// includingOurs = false 时不算自己的（SketchyBar、aero-helper、Wi-Fi / 蓝牙面板）
     func popupOpen(includingOurs: Bool) -> Bool {
         let ours: Set<String> = ["sketchybar", "aero-helper", "fantastic-i3-wifi", "fantastic-i3-bluetooth"]
         let screens = NSScreen.screens.compactMap(displayID).map(CGDisplayBounds)
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         return info.contains { window in
-            guard let layer = window[kCGWindowLayer as String] as? Int, layer > 25, layer < 1000,
+            guard let layer = window[kCGWindowLayer as String] as? Int, layer == 101,
                   includingOurs || !ours.contains(window[kCGWindowOwnerName as String] as? String ?? ""),
                   (window[kCGWindowAlpha as String] as? Double ?? 1) > 0,
                   let dict = window[kCGWindowBounds as String] as? NSDictionary,
@@ -487,8 +510,45 @@ final class BarBackdrop {
         defer { argv.forEach { free($0) } }
         var pid: pid_t = 0
         guard posix_spawn(&pid, path, &actions, nil, argv, environ) == 0 else { return }
+        // 但最多等 2 秒：睡醒后 yabai / SketchyBar 有时会卡住一阵（yabai 的查询请求会一直不回），
+        // 以前这里死等，把主线程（碰顶让开、换栏）也一起堵住了：栏没换过去，系统菜单栏也回不来
         var status: Int32 = 0
+        for _ in 0..<200 {
+            if waitpid(pid, &status, WNOHANG) == pid { return }
+            usleep(10_000)
+        }
+        kill(pid, SIGKILL)
         while waitpid(pid, &status, 0) == -1 && errno == EINTR {}
+        logLine("bar-backdrop：\(path) 2 秒没退出，杀掉了")
+    }
+
+    /// 睡醒之后：SketchyBar 会重画栏，屏可能刚接回来（盖着的盖子打开了），底板的前后顺序和系统菜单栏的透明度
+    /// 都可能和栏现在的样子对不上。醒后隔一会儿各做一次：问一次 SketchyBar、把底板排回栏后面、照栏的样子
+    /// 把系统菜单栏设成该有的透明度（见 reassertMenuBar）。刚醒的几秒屏幕状态还乱，checkCovered 先不动栏
+    func woke() {
+        let now = Date()
+        guard now.timeIntervalSince(wokeAt) > 3 else { return }   // 系统唤醒、屏幕唤醒会各发一个，只处理一次
+        wokeAt = now
+        wakeGuardUntil = now.addingTimeInterval(8)
+        logLine("睡醒：重排底板、对一遍系统菜单栏")
+        for delay in [1.5, 4.0, 8.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self else { return }
+                self.sync()
+                self.orderBelowBar()
+                self.reassertMenuBar()
+            }
+        }
+    }
+
+    /// 栏没藏时系统菜单栏应该是透明的（栏盖着它），藏着（⌥⇧↩、碰顶让开）时应该露出来。
+    /// 睡醒后会对不上：栏上的项不见了、系统菜单栏也是透明的，顶上只剩底板的磨砂。碰顶让开能救回来，
+    /// 但要靠 switchBar 先改这个透明度，yabai 卡住的时候它也改不动，所以这里定期对一下
+    func reassertMenuBar() {
+        work.async { [weak self] in
+            guard let self else { return }
+            self.runTool(self.yabai, ["-m", "config", "menubar_opacity", self.hidden ? "1.0" : "0.0"])
+        }
     }
 
     func makeGlass() -> NSWindow {
@@ -575,6 +635,9 @@ final class BarBackdrop {
                          screen.colorSpace?.cgColorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!))
         }
         placeOnDesktops()
+        // 新建的窗口会排在层级 25 的最前面（makeWindow 的 orderFrontRegardless），压在 SketchyBar 整条栏上：
+        // 屏刚接回来（打开盖子）时顶上就只剩一块磨砂。马上排到栏后面，不等下一次 sync
+        orderBelowBar()
         let generation = self.generation, height = self.height, light = self.light
         work.async { [weak self] in
             guard let self else { return }

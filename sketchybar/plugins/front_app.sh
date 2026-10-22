@@ -9,7 +9,10 @@ source "$CONFIG_DIR/colors.sh"
 source "$CONFIG_DIR/icon_map.sh"
 HELPER="$HOME/.cache/fantastic-i3/aero-helper"
 
-win=$(yabai -m query --windows --window 2>/dev/null)
+# yabai 偶尔会卡住一阵（睡醒之后有查询一直不回的时候）：3 秒就放弃，照样显示前台应用和标题
+qyabai() { perl -e 'alarm 3; exec @ARGV or exit 127' -- yabai "$@" 2>/dev/null; }
+
+win=$(qyabai -m query --windows --window)
 app=$(jq -r '.app // empty' <<<"$win" 2>/dev/null)
 title=$(jq -r '.title // empty' <<<"$win" 2>/dev/null)
 if [ "$SENDER" = front_app_switched ] && [ -n "$INFO" ] && [ "$INFO" != "$app" ]; then
