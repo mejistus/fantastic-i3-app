@@ -11,7 +11,11 @@ source "$CONFIG_DIR/colors.sh"
 source "$CONFIG_DIR/icon_map.sh"
 
 windows=$(yabai -m query --windows 2>/dev/null) || exit 0
-visible=" $(yabai -m query --spaces 2>/dev/null | jq -r '.[] | select(."is-visible") | .index' | paste -sd' ' -) "
+spaces=$(yabai -m query --spaces 2>/dev/null) || exit 0
+# 原生全屏的应用自己占一个桌面（is-native-fullscreen），不算工作区：它的窗口不画图标、也不参与
+# "可见 / 空工作区显示"的判断，进出全屏时才不会让左组的图标来回跳、变宽变窄（配合 aero spaces-changed）
+visible=" $(jq -r '.[] | select(."is-visible") | select(."is-native-fullscreen" | not) | .index' <<<"$spaces" | paste -sd' ' -) "
+fullscreen=" $(jq -r '.[] | select(."is-native-fullscreen") | .index' <<<"$spaces" | paste -sd' ' -) "
 hidden=$(jq -r '.[] | select(."has-ax-reference" | not) | .id' <<<"$windows" |
     xargs "$HOME/.cache/fantastic-i3/aero-helper" ordered-out 2>/dev/null | paste -sd, -)
 hide_empty=$(sed -n 's/^[[:space:]]*hidden_unactivated[[:space:]]*=[[:space:]]*\([A-Za-z0-9]*\).*/\1/p' \
@@ -20,6 +24,7 @@ case $hide_empty in true | yes | on | 1) hide_empty=1 ;; *) hide_empty=0 ;; esac
 icons=()
 while IFS=$'\t' read -r space app; do
     [ -n "$space" ] && [ "$space" -le 17 ] || continue
+    [[ $fullscreen == *" $space "* ]] && continue
     __icon_map "$app"
     # 拿不到细节的窗口，yabai 报的是进程名（如 zotero），图标表里是 Zotero：首字母大写再查一次
     [ "$icon_result" = ":default:" ] && __icon_map "$(tr '[:lower:]' '[:upper:]' <<<"${app:0:1}")${app:1}"

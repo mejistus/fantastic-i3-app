@@ -875,6 +875,11 @@ cmd_spaces_changed() {
     local desktops
     desktops=$(yabai -m query --spaces | jq -c '[.[] | select(."is-native-fullscreen" | not) | .id]') || return 0
     [ "$desktops" = "$(cat "$STATE/desktops" 2>/dev/null)" ] && return 0
+    # 进出原生全屏时 is-native-fullscreen 在动画里会短暂报不准（新桌面一时还没标成全屏），
+    # 等 1 秒状态稳了再比一次，还差才算真增减了桌面、才 reload
+    sleep 1
+    desktops=$(yabai -m query --spaces | jq -c '[.[] | select(."is-native-fullscreen" | not) | .id]') || return 0
+    [ "$desktops" = "$(cat "$STATE/desktops" 2>/dev/null)" ] && return 0
     cmd_reload
 }
 
