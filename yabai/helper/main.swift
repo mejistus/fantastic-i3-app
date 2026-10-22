@@ -541,7 +541,9 @@ func searchKeys(_ text: String) -> [[Character]] {
     }
     let pinyin = NSMutableString(string: words.joined(separator: " "))
     CFStringTransform(pinyin, nil, kCFStringTransformStripDiacritics, false)
-    return [Array(text), Array((pinyin as String).lowercased())]
+    let lower = (pinyin as String).lowercased()
+    // 另给一份去掉空格的拼音：子串匹配时打 "nihao" 也能命中 "ni hao"
+    return [Array(text), Array(lower), Array(lower.replacingOccurrences(of: " ", with: ""))]
 }
 
 /// 搜索框的字段编辑器：没有输入上下文，按键不交给输入法，直接是键盘上的字母，也不会出候选框。
@@ -642,6 +644,29 @@ func fuzzyMatch(_ query: [Character], _ text: [Character]) -> (score: Int, posit
 
 func fuzzyScore(_ query: [Character], _ text: [Character]) -> Int? {
     fuzzyMatch(query, text)?.score
+}
+
+/// 按子串匹配（不跳字）：搜 "ad" 不会命中 "abcd"，"ab ef" 这样分词后每个词都出现才算。
+/// 词首 +30、正好是整个词 +20、越靠前越好。剪贴板搜索用这个（和 fzf 的 --exact 一个意思）
+func substringMatch(_ term: [Character], _ text: [Character]) -> (score: Int, positions: [Int])? {
+    let m = term.count, n = text.count
+    guard m > 0, m <= n else { return nil }
+    func wordStart(_ i: Int) -> Bool { i == 0 || !(text[i - 1].isLetter || text[i - 1].isNumber) }
+    func wordEnd(_ i: Int) -> Bool { i + m >= n || !(text[i + m].isLetter || text[i + m].isNumber) }
+
+    var best = Int.min, at = -1
+    for i in 0...(n - m) {
+        var k = 0
+        while k < m, text[i + k] == term[k] { k += 1 }
+        guard k == m else { continue }
+        var score = 10 * m
+        if wordStart(i) { score += 30 }
+        if wordEnd(i) { score += 20 }
+        score -= min(i, 40) / 4
+        if score > best { best = score; at = i }
+    }
+    guard at >= 0 else { return nil }
+    return (best, Array(at..<(at + m)))
 }
 
 final class Switcher: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {

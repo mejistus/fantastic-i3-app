@@ -400,9 +400,9 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
                 shown = all.enumerated().compactMap { index, row -> (Int, Int, Row)? in
                     var total = 0
                     for term in terms {
-                        if let score = row.haystack.compactMap({ fuzzyScore(term, $0) }).max() {
+                        if let score = row.haystack.compactMap({ substringMatch(term, $0)?.score }).max() {
                             total += score
-                        } else if let score = fuzzyScore(term, row.appText) {
+                        } else if let score = substringMatch(term, row.appText)?.score {
                             total += score / 2   // 只在来源应用名里命中：算，但排在正文命中的后面
                         } else {
                             return nil
@@ -696,7 +696,7 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         let lower = Array(text.lowercased())
         var ranges: [NSRange] = []
         for term in activeQuery.lowercased().split(separator: " ") {
-            guard let match = fuzzyMatch(Array(term), lower) else { continue }
+            guard let match = substringMatch(Array(term), lower) else { continue }
             ranges += utf16Ranges(match.positions, in: text)
         }
         return ranges
