@@ -542,8 +542,25 @@ func searchKeys(_ text: String) -> [[Character]] {
     let pinyin = NSMutableString(string: words.joined(separator: " "))
     CFStringTransform(pinyin, nil, kCFStringTransformStripDiacritics, false)
     let lower = (pinyin as String).lowercased()
-    // 另给一份去掉空格的拼音：子串匹配时打 "nihao" 也能命中 "ni hao"
-    return [Array(text), Array(lower), Array(lower.replacingOccurrences(of: " ", with: ""))]
+    // 除了汉字本身，再给简体版（繁体也能用简体搜）和三份拼音：带空格的、"nihao" 这样连着的、
+    // 以及每个字的首字母（"说明文档" → "smwd"）。搜索框不走输入法（打不出汉字），拼音和首字母就是中文的搜法。
+    // 首字母只算前 60 个字：一个字一次转换，整段都算的话打开面板要慢半秒
+    let compact = lower.replacingOccurrences(of: " ", with: "")
+    var initials: [Character] = []
+    for character in text.prefix(60) where character.unicodeScalars.contains(where: \.properties.isIdeographic) {
+        let latin = NSMutableString(string: String(character))
+        CFStringTransform(latin, nil, kCFStringTransformMandarinLatin, false)
+        CFStringTransform(latin, nil, kCFStringTransformStripDiacritics, false)
+        if let first = (latin as String).lowercased().first { initials.append(first) }
+    }
+    return [Array(text), Array((simplified as String).lowercased()), Array(lower), Array(compact), initials]
+}
+
+/// 搜索词：转小写，繁体转简体（存的可能是繁体，键里有简体版；拼音不受影响）
+func queryTerm(_ text: String) -> [Character] {
+    let string = NSMutableString(string: text.lowercased())
+    CFStringTransform(string, nil, "Hant-Hans" as CFString, false)
+    return Array(string as String)
 }
 
 /// 搜索框的字段编辑器：没有输入上下文，按键不交给输入法，直接是键盘上的字母，也不会出候选框。

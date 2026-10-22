@@ -308,6 +308,11 @@ hidden_unactivated=false
 # How many days of clipboard history to keep (⌥⇧V); 0 keeps everything.
 # 剪贴板历史（⌥⇧V）保留几天；0 = 一直留着。
 clipboard_days=7
+
+# true: the clipboard search box goes through the input method, so you can type Chinese.
+# false (default): keys go straight to the field, so pinyin searches as you type (no candidate window).
+# true：剪贴板搜索框走输入法，可以直接打汉字。false（默认）：按键直接进搜索框，打拼音即时搜中文，不弹候选框。
+clipboard_ime=false
 CONFIG
         ok "$(t "设置文件：~/.config/fantastic-i3/config" "Settings file: ~/.config/fantastic-i3/config")"
     fi

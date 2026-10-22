@@ -368,8 +368,16 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         if shown.indices.contains(table.selectedRow) { table.scrollRowToVisible(table.selectedRow) }
     }
 
+    /// 搜索框默认不走输入法：按键直接就是字母，不弹候选框（打拼音搜中文最快）。
+    /// 想直接打汉字就把 ~/.config/fantastic-i3/config 里的 clipboard_ime 设成 true，改用系统的字段编辑器
+    var imeInSearch: Bool {
+        guard let value = clipboardSetting("clipboard_ime")?.lowercased() else { return false }
+        return ["true", "yes", "on", "1"].contains(value)
+    }
+
     func windowWillReturnFieldEditor(_ sender: NSWindow, to client: Any?) -> Any? {
-        (client as? NSTextField) === search ? fieldEditor : nil
+        guard (client as? NSTextField) === search else { return nil }
+        return imeInSearch ? nil : fieldEditor
     }
 
     // 过滤、选择
@@ -393,7 +401,7 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
                 shown = []
             }
         } else {
-            let terms = trimmed.lowercased().split(separator: " ").map(Array.init)
+            let terms = trimmed.split(separator: " ").map { queryTerm(String($0)) }
             if terms.isEmpty {
                 shown = all
             } else {
@@ -450,9 +458,15 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         } else {
             previewImage.isHidden = true
             previewScroll.isHidden = false
-            previewText.string = entry.text ?? ""
-            previewText.textColor = .labelColor
-            previewText.scrollToBeginningOfDocument(nil)
+            // 预览里把命中的地方都标出来（被列表截掉的部分也看得到），并滚到第一处
+            let body = entry.text ?? ""
+            let ranges = allHighlightRanges(in: body)
+            previewText.textStorage?.setAttributedString(previewAttributed(body, ranges: ranges))
+            if let first = ranges.first {
+                previewText.scrollRangeToVisible(first)
+            } else {
+                previewText.scrollToBeginningOfDocument(nil)
+            }
             if entry.kind == "files" {
                 // 文件：先列出路径，"快速查看"的缩略图（图片、PDF、视频、文稿…）生成好了换成它
                 let paths = filePaths(entry)
@@ -695,11 +709,48 @@ final class ClipboardPanel: NSObject, NSApplicationDelegate, NSWindowDelegate, N
         }
         let lower = Array(text.lowercased())
         var ranges: [NSRange] = []
-        for term in activeQuery.lowercased().split(separator: " ") {
-            guard let match = substringMatch(Array(term), lower) else { continue }
+        for term in activeQuery.split(separator: " ") {
+            guard let match = substringMatch(queryTerm(String(term)), lower) else { continue }
             ranges += utf16Ranges(match.positions, in: text)
         }
         return ranges
+    }
+
+    /// 预览里的高亮：每一处出现都标（列表里只标打分选中的那一处，正文太长时后面的命中看不到）
+    func allHighlightRanges(in text: String) -> [NSRange] {
+        guard !activeQuery.isEmpty else { return [] }
+        if activeQuery.hasPrefix("/") {
+            let pattern = String(activeQuery.dropFirst())
+            guard !pattern.isEmpty, let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+            else { return [] }
+            return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).map(\.range)
+        }
+        let string = text as NSString
+        var ranges: [NSRange] = []
+        for term in activeQuery.split(separator: " ") where string.length > 0 {
+            var start = 0
+            var found = 0
+            while start < string.length, found < 2000 {   // 一个词出现几千次时不再往下列，够看了
+                let range = string.range(of: String(term), options: [.caseInsensitive],
+                                         range: NSRange(location: start, length: string.length - start))
+                guard range.location != NSNotFound, range.length > 0 else { break }
+                ranges.append(range)
+                found += 1
+                start = range.location + range.length
+            }
+        }
+        return ranges
+    }
+
+    func previewAttributed(_ text: String, ranges: [NSRange]) -> NSAttributedString {
+        let attributed = NSMutableAttributedString(string: text, attributes: [
+            .font: previewText.font ?? .systemFont(ofSize: fontSize),
+            .foregroundColor: NSColor.labelColor,
+        ])
+        for range in ranges where range.length > 0 && range.location + range.length <= attributed.length {
+            attributed.addAttribute(.backgroundColor, value: NSColor.controlAccentColor.withAlphaComponent(0.30), range: range)
+        }
+        return attributed
     }
 
     /// 字符下标换成 UTF-16 的 NSRange（NSAttributedString 用的是 UTF-16），挨着的合成一段
