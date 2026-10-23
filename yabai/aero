@@ -832,9 +832,10 @@ cmd_app_workspace() {
 # aero focus-window（⌥⇥ / ⌘⇥ 等）引起的切换它自己会盯，这里不插手（见 focus_pending）。
 cmd_ensure_focus() {
     local sp pid target _
+    # 有原生全屏的桌面时什么都不做：全屏里只有那一个应用、焦点 macOS 自己管，而且切进切出的时候
+    # 当前桌面要过一会儿才报成全屏，在这里抢焦点会来回触发（焦点来回跳、space_changed 一直响）
+    yabai -m query --spaces | jq -e 'any(.[]; ."is-native-fullscreen")' >/dev/null && return 0
     sp=$(current_space)
-    # 原生全屏的桌面上只有那一个应用，焦点 macOS 自己管；在这里抢焦点正赶上全屏动画
-    yabai -m query --spaces --space | jq -e '."is-native-fullscreen"' >/dev/null && return 0
     for _ in 1 2 3 4 5 6; do
         sleep 0.1
         focus_pending && return 0
@@ -872,8 +873,13 @@ cmd_reload() {
 # space_created / space_destroyed，那种不算：之前每次全屏都 reload（重新注入 SA、登记规则和信号、重载 skhd），
 # 正赶上全屏动画，又卡又闪
 cmd_spaces_changed() {
-    local desktops
-    desktops=$(yabai -m query --spaces | jq -c '[.[] | select(."is-native-fullscreen" | not) | .id]') || return 0
+    local desktops all
+    all=$(yabai -m query --spaces) || return 0
+    jq -e 'type == "array"' >/dev/null <<<"$all" || return 0
+    # 有原生全屏的桌面就整个跳过：进 / 出全屏要创建、销毁桌面，这会儿添桌面、贴标签、重载规则
+    # 全是在全屏动画里做的，栏会闪、CPU 也高。等退出全屏（那一下还会再来一次 space_destroyed）再补
+    jq -e 'any(.[]; ."is-native-fullscreen")' >/dev/null <<<"$all" && return 0
+    desktops=$(jq -c '[.[] | select(."is-native-fullscreen" | not) | .id]' <<<"$all")
     [ "$desktops" = "$(cat "$STATE/desktops" 2>/dev/null)" ] && return 0
     # 进出原生全屏时 is-native-fullscreen 在动画里会短暂报不准（新桌面一时还没标成全屏），
     # 等 1 秒状态稳了再比一次，还差才算真增减了桌面、才 reload

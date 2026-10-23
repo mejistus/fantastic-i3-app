@@ -23,6 +23,8 @@ HELPER="$HOME/.cache/fantastic-i3/aero-helper"
 # 只匹配以 aero-helper 路径开头的命令行，别误杀命令里恰好带这几个字的进程
 pkill -f "^$HELPER bar-stats" 2>/dev/null
 pkill -f "^$HELPER bar-backdrop" 2>/dev/null
+# 工作区那一组"上次画出来的样子"（space_apps.sh 靠它跳过没变化的重复刷新）：项都重建了，清掉
+rm -f "/tmp/yabai-aero-${USER:-$(id -un)}/space-apps.state"
 
 # topmost=on：栏在最上面，盖住常显的系统菜单栏（菜单栏层级 24、右边的状态图标 25）。窗口碰不到菜单栏那一截，
 # 所以也碰不到栏。盖满整块屏的窗口（PowerPoint 放映等）出现时，底板（aero-helper bar-backdrop）把栏降成 topmost=off，
